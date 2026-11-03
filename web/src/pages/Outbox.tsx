@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fmtKg, fmtINR } from '@app/shared';
+import { fmtKg, fmtINR, netTenths, amountPaisa } from '@app/shared';
 import { useApp, Shell } from '../App';
 import { getDb } from '../offline/db';
 import { trySync, isOnlineNow } from '../offline/sync';
@@ -28,6 +28,10 @@ export default function Outbox() {
   };
 
   const nameOf = (e: any) => e.payload?.farmerId ?? '';
+  // Show net weight and the real payable amount (same calc the server applies):
+  // gross - tare, minus 1% per moisture point above 12.
+  const netOf = (e: any) => netTenths(e.payload.grossTenths, e.payload.tareTenths, e.payload.moistureTenths);
+  const amountOf = (e: any) => amountPaisa(netOf(e), e.payload.rateRupees);
 
   return (
     <Shell>
@@ -41,7 +45,7 @@ export default function Outbox() {
       {pending.map((e) => (
         <div key={e.uuid} className="card">
           <div className="kv"><span className="k">{nameOf(e)}</span><span className="badge amber">{t('pendingSync')}</span></div>
-          <div className="kv"><span className="k">{t(e.payload.crop)}</span><span className="v">{fmtKg(e.payload.grossTenths)} kg</span></div>
+          <div className="kv"><span className="k">{t(e.payload.crop)}</span><span className="v">{fmtKg(netOf(e))} kg · ₹{fmtINR(amountOf(e))}</span></div>
           {e.state === 'error' && <div className="callout red">{e.error}</div>}
         </div>
       ))}
@@ -52,7 +56,7 @@ export default function Outbox() {
             <span className="k">{nameOf(e)}</span>
             <span className={`badge ${e.status === 'flagged' ? 'amber' : 'green'}`}>{e.slipNo}</span>
           </div>
-          <div className="kv"><span className="k">{t(e.payload.crop)}</span><span className="v">{fmtKg(e.payload.grossTenths)} kg · ₹{fmtINR(Math.round((e.payload.grossTenths * e.payload.rateRupees) / 10))}</span></div>
+          <div className="kv"><span className="k">{t(e.payload.crop)}</span><span className="v">{fmtKg(netOf(e))} kg · ₹{fmtINR(amountOf(e))}</span></div>
           {e.flags?.length > 0 && <div className="sub2">{e.flags.map((f: string) => t(`flag_${f}`)).join(' · ')}</div>}
         </div>
       ))}

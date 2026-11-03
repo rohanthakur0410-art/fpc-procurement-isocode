@@ -49,6 +49,15 @@ if (found) {
   await new Promise(r => setTimeout(r, 2000));
   const doneText = await page.evaluate(() => document.body.innerText);
   console.log('OFFLINE SAVE:', doneText.includes('फोनवर सेव्ह झाले') || doneText.includes('Saved on the phone') ? 'YES - queued offline' : 'UNEXPECTED: ' + doneText.slice(0, 150));
+  globalThis.savedUuid = await page.evaluate(() => new Promise((res) => {
+    const rq = indexedDB.open('fpc-offline', 1);
+    rq.onsuccess = () => {
+      const db = rq.result;
+      const tx = db.transaction('outbox').objectStore('outbox').getAll();
+      tx.onsuccess = () => { const all = tx.result; res(all.length ? all[all.length-1].uuid : null); };
+    };
+  }));
+  console.log('OFFLINE ENTRY UUID:', globalThis.savedUuid);
   await page.screenshot({ path: '/tmp/shots/12-offline-save.png' });
 }
 
@@ -60,6 +69,18 @@ const syncBtn = await page.$('.big-btn');
 if (syncBtn) { await syncBtn.click(); }
 await new Promise(r => setTimeout(r, 2500));
 const outText = await page.evaluate(() => document.body.innerText);
-console.log('SYNCED WITH SLIP NO:', /C12-08877|C07-2452\d/.test(outText) ? 'YES' : 'CHECK: ' + outText.slice(0, 200));
+const sentInfo = await page.evaluate(() => new Promise((res) => {
+  const rq = indexedDB.open('fpc-offline', 1);
+  rq.onsuccess = () => {
+    const db = rq.result;
+    const tx = db.transaction('sent').objectStore('sent').getAll();
+    tx.onsuccess = () => { const all = tx.result; const e = all[all.length-1]; res(e ? { uuid: e.uuid, slipNo: e.slipNo, status: e.status } : null); };
+  };
+}));
+console.log('SENT ENTRY:', JSON.stringify(sentInfo));
+console.log('SAME UUID ROUNDTRIP:', sentInfo && sentInfo.uuid === globalThis.savedUuid ? 'YES' : 'NO');
+const m = outText.match(/C\d\d-\d{5}/);
+console.log('SYNCED SLIP NO:', m ? m[0] : 'NONE');
+console.log('OUTBOX CARD SHOWS NET+AMOUNT:', outText.includes('630.0') && outText.includes('45,360.00') ? 'YES' : 'NO -> ' + outText.slice(0, 300));
 await page.screenshot({ path: '/tmp/shots/13-after-sync.png' });
 await browser.close();
