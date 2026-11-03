@@ -7,9 +7,13 @@ export default function SmsLog() {
   const { t, lang } = useApp();
   const [rows, setRows] = useState<any[]>([]);
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.sms().then((r) => setRows(r.sms)).catch(() => setErr(t('error')));
+    api.sms()
+      .then((r) => setRows(r.sms))
+      .catch(() => setErr(t('error')))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -17,7 +21,8 @@ export default function SmsLog() {
       <h1>{t('smsLog')}</h1>
       <p className="sub">{t('slipReadableNote')}</p>
       {err && <div className="callout red">{err}</div>}
-      {rows.length === 0 && !err && <div className="callout">{t('empty')}</div>}
+      {loading && !err && <div className="callout green">{t('loading')}</div>}
+      {!loading && rows.length === 0 && !err && <div className="callout">{t('empty')}</div>}
       {rows.map((r) => (
         <div key={r.id} className="card">
           <div className="kv">

@@ -202,7 +202,7 @@ export default function EntryWizard() {
     <Shell>
       <div className="steps">
         {STEP_ORDER.slice(0, 4).map((k, i) => (
-          <div key={k} className={`dotline ${i < stepIdx ? 'done' : ''}`} />
+          <div key={k} className={`dotline ${i < stepIdx || step === 'done' ? 'done' : i === stepIdx ? 'current' : ''}`} />
         ))}
       </div>
       {step === 'member' && (

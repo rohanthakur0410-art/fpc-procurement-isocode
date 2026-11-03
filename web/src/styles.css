@@ -136,6 +136,7 @@ h1 { font-size: 22px; margin: 16px 0 4px; letter-spacing: -0.2px; }
 .steps { display: flex; gap: 6px; margin: 16px 0 4px; }
 .steps .dotline { flex: 1; height: 5px; border-radius: 999px; background: var(--line); }
 .steps .dotline.done { background: var(--green-bright); }
+.steps .dotline.current { background: #a7d8b4; }
 
 /* ---------- badges & callouts ---------- */
 .badge { display: inline-block; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; }

@@ -3,6 +3,7 @@ import type { SessionUser } from '@app/shared';
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: 'include',
+    cache: 'no-store',
     headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
     ...init,
   });
