@@ -116,6 +116,7 @@ export default function EntryWizard() {
   const [saveErr, setSaveErr] = useState('');
   const [saved, setSaved] = useState<{ synced: boolean; slipNo?: string; slipText: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showReview, setShowReview] = useState(false);
 
   useEffect(() => {
     refreshReferenceData().then(() => cachedMembers().then(setMembers));
@@ -152,6 +153,7 @@ export default function EntryWizard() {
     if (!canSave || !member || !crop || net == null || amount == null || !user?.centreCode) return;
     setBusy(true);
     setSaveErr('');
+    setShowReview(false);
     try {
       const photoName = scaleAi.photoName || moistAi.photoName || null;
       await saveEntry({
@@ -293,9 +295,38 @@ export default function EntryWizard() {
             <span>{t('netWeight')}: <strong>{net != null ? `${fmtKg(net)} ${lang === 'mr' ? 'कि.ग्रॅ.' : 'kg'}` : '—'}</strong></span>
             <span className="amt">{amount != null ? `₹${fmtINR(amount)}` : '₹ —'}</span>
           </div>
-          <button className="big-btn" disabled={!canSave} onClick={doSave}>{busy ? t('loading') : t('saveEntry')}</button>
+          <button className="big-btn" disabled={!canSave} onClick={() => setShowReview(true)}>{t('review')} →</button>
         </div>
       </div>
+
+      {showReview && member && crop && net != null && amount != null && rate != null && (
+        <div className="sheet-backdrop" onClick={() => setShowReview(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="grab" />
+            <h2 style={{ marginBottom: 10 }}>{t('review')} · {t('slip')}</h2>
+            <div className="slip">
+              <div className="head"><div className="title">{t('slip')}</div></div>
+              <div className="body">
+                <div className="kv"><span className="k">{t('farmer')}</span><span className="v">{lang === 'mr' ? member.nameMr : member.name} ({member.farmerId})</span></div>
+                <div className="kv"><span className="k">{t('village')}</span><span className="v">{lang === 'mr' ? member.villageMr : member.village}</span></div>
+                <div className="kv"><span className="k">{t('crop')}</span><span className="v">{t(crop)} · {t('grade')} {grade}</span></div>
+                <div className="kv"><span className="k">{t('grossKg')}</span><span className="v">{fmtKg(grossT!)}</span></div>
+                <div className="kv"><span className="k">{t('tareKg')}</span><span className="v">{fmtKg(tareT!)}</span></div>
+                <div className="kv"><span className="k">{t('moisture')}</span><span className="v">{fmtMoisture(moistT!)}%</span></div>
+                <div className="kv"><span className="k">{t('netWeight')}</span><span className="v num-lg">{fmtKg(net)}</span></div>
+                <div className="kv"><span className="k">{t('rateOfDay')}</span><span className="v">₹{rate.toLocaleString('en-IN')} {t('perQuintal')}</span></div>
+              </div>
+              <div className="amount"><div className="num-xl">₹{fmtINR(amount)}</div></div>
+            </div>
+            {mismatches.length > 0 && <div className="callout red">{t('aiMismatch')} ({mismatches.join(', ')})</div>}
+            {saveErr && <div className="callout red">{saveErr}</div>}
+            <div className="row">
+              <button className="btn" onClick={() => setShowReview(false)}>{t('change')}</button>
+              <button className="btn primary" disabled={busy} onClick={doSave}>{busy ? t('loading') : t('saveEntry')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </Shell>
   );
 }

@@ -90,6 +90,7 @@ const dict: Record<string, { mr: string; en: string }> = {
   navSms: { mr: 'SMS', en: 'SMS' },
   needsAttention: { mr: 'लक्ष द्यावे', en: 'Needs attention' },
   heldForReview: { mr: 'तपासणीसाठी थांबवलेल्या', en: 'Held for review' },
+  review: { mr: 'तपासा', en: 'Review' },
   empty: { mr: 'काहीही नाही', en: 'Nothing here yet' },
   error: { mr: 'काहीतरी चुकले. पुन्हा प्रयत्न करा.', en: 'Something went wrong. Try again.' },
   date: { mr: 'दिनांक', en: 'Date' },

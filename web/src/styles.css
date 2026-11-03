@@ -291,3 +291,19 @@ a .big-btn, a.big-btn { text-decoration: none; }
 .hero-pay .cap { font-size: 13px; opacity: 0.85; }
 .hero-pay .tot { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.4px; margin: 2px 0 12px; }
 .hero-pay .big-btn { background: #fff; color: var(--green-deep); box-shadow: none; margin: 0; }
+
+/* keep focused inputs clear of the sticky action bar / keyboard */
+.field input { scroll-margin-bottom: 160px; }
+
+/* ---------- review bottom sheet ---------- */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 40; background: rgba(23, 43, 30, 0.45);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.sheet {
+  background: var(--bg, #f4f6f2); width: 100%; max-width: 520px; max-height: 86vh; overflow-y: auto;
+  border-radius: 20px 20px 0 0; padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.25);
+}
+.sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: #cfd6cd; margin: 6px auto 12px; }
+.sheet .row { margin-top: 12px; }
