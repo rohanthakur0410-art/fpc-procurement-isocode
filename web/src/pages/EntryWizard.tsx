@@ -178,6 +178,7 @@ export default function EntryWizard() {
         `${t('moisture')}: ${fmtMoisture(moistT!)}`,
         `${t('netWeight')}: ${fmtKg(net)} ${lang === 'mr' ? 'कि.ग्रॅ.' : 'kg'}`,
         `${t('rateOfDay')}: ₹${rate!.toLocaleString('en-IN')} ${t('perQuintal')}`,
+        `${t('amount')}: ₹${fmtINR(amount)}`,
       ].join('\n');
       setSaved({ synced: !!slipNo, slipNo, slipText });
       setStep('done');
