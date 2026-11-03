@@ -45,8 +45,8 @@ h1 { font-size: 22px; margin: 18px 0 4px; }
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 16px; margin-bottom: 12px;
 }
-.stat { display: flex; flex-direction: column; gap: 2px; }
-.stat .num { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat .num { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; line-height: 1.2; }
 .stat .lbl { font-size: 13px; color: var(--muted); }
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .big-btn {
@@ -125,3 +125,8 @@ table.simple th { color: var(--muted); font-weight: 600; font-size: 12px; }
 .dot.on { background: var(--green); }
 .dot.off { background: var(--red); }
 .mono { font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all; }
+
+@media (max-width: 420px) {
+  .stat .num { font-size: 20px; }
+  .stat-grid { gap: 10px; }
+}
