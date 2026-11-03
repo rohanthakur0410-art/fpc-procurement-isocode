@@ -31,8 +31,8 @@ function BottomNav() {
   const items = user.role === 'office'
     ? [
         { to: '/office', ic: '📊', k: 'navDash' },
-        { to: '/office/prices', ic: '💹', k: 'navPrices' },
-        { to: '/office/payments', ic: '💸', k: 'navPay' },
+        { to: '/office/prices', ic: '📈', k: 'navPrices' },
+        { to: '/office/payments', ic: '🧾', k: 'navPay' },
         { to: '/office/sms', ic: '✉️', k: 'navSms' },
       ]
     : [
