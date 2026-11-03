@@ -23,11 +23,18 @@ export default function OfficeDashboard() {
     <Shell wide>
       <h1>{t('dashboard')}</h1>
       <p className="sub">{data.date}</p>
-      <div className="nav-tabs">
-        <Link to="/office/prices"><button className="btn">{t('priceBoard')}</button></Link>
-        <Link to="/office/payments"><button className="btn">{t('payments')}</button></Link>
-        <Link to="/office/sms"><button className="btn">{t('smsLog')}</button></Link>
-      </div>
+      {data.flaggedCount > 0 && (
+        <Link to="/office/payments" style={{ textDecoration: 'none' }}>
+          <div className="attention">
+            <span className="bell">⚠️</span>
+            <span className="txt">
+              <span className="t1" style={{ display: 'block' }}>{t('needsAttention')}: {data.flaggedCount}</span>
+              <span className="t2">{t('heldForReview')} → {t('payments')}</span>
+            </span>
+            <span style={{ fontSize: 20, color: 'var(--amber)' }}>→</span>
+          </div>
+        </Link>
+      )}
 
       <div className="card stat-grid">
         <div className="stat"><span className="num">{totalSlips}</span><span className="lbl">{t('slipsToday')}</span></div>

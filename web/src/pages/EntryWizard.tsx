@@ -9,8 +9,6 @@ import { cachedMembers, cachedRate } from '../offline/db';
 import { saveEntry, trySync, refreshReferenceData, todayIST, isOnlineNow } from '../offline/sync';
 import { api } from '../api';
 
-type Step = 'member' | 'crop' | 'weights' | 'summary' | 'done';
-
 interface AiState {
   photoName: string | null;
   photoDataUrl: string | null;
@@ -103,7 +101,7 @@ function PhotoReader({
 export default function EntryWizard() {
   const { t, user, lang } = useApp();
   const navigate = useNavigate();
-  const [step, setStep] = useState<Step>('member');
+  const [done, setDone] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [q, setQ] = useState('');
   const [member, setMember] = useState<Member | null>(null);
@@ -148,9 +146,10 @@ export default function EntryWizard() {
   if (moistAi.status === 'ok' && moistAi.valueTenths != null && moistT != null && moistT !== moistAi.valueTenths) mismatches.push(t('moisture'));
 
   const weightsValid = grossT != null && tareT != null && moistT != null && grossT > tareT && rate != null;
+  const canSave = !!member && !!crop && weightsValid && mismatches.length === 0 && !busy;
 
   const doSave = async () => {
-    if (!member || !crop || !weightsValid || net == null || amount == null || !user?.centreCode) return;
+    if (!canSave || !member || !crop || net == null || amount == null || !user?.centreCode) return;
     setBusy(true);
     setSaveErr('');
     try {
@@ -161,7 +160,6 @@ export default function EntryWizard() {
         rateRupees: rate!, photoName,
       });
       const outcome = await trySync();
-      // Read back the slip number if it synced immediately
       let slipNo: string | undefined;
       if (outcome.stored > 0 || outcome.duplicates > 0) {
         const { getDb } = await import('../offline/db');
@@ -181,7 +179,8 @@ export default function EntryWizard() {
         `${t('amount')}: ₹${fmtINR(amount)}`,
       ].join('\n');
       setSaved({ synced: !!slipNo, slipNo, slipText });
-      setStep('done');
+      setDone(true);
+      window.scrollTo(0, 0);
     } catch {
       setSaveErr(t('error'));
     } finally {
@@ -190,30 +189,55 @@ export default function EntryWizard() {
   };
 
   const reset = () => {
-    setStep('member'); setMember(null); setCrop(null); setGrade('A'); setRate(null);
+    setDone(false); setMember(null); setCrop(null); setGrade('A'); setRate(null);
     setGross(''); setTare(''); setMoisture(''); setScaleAi(emptyAi); setMoistAi(emptyAi);
     setSaved(null); setQ('');
   };
 
-  const STEP_ORDER = ['member', 'crop', 'weights', 'summary', 'done'];
-  const stepIdx = STEP_ORDER.indexOf(step);
+  if (done && saved) {
+    return (
+      <Shell>
+        <h1 style={{ marginTop: 18 }}>{t('slip')}</h1>
+        <div className="slip">
+          <div className="head">
+            <div className="title">{t('appName')}</div>
+            <div className="no">{saved.synced ? `${t('officialSlip')} ${saved.slipNo}` : t('savedOffline')}</div>
+          </div>
+          <div className="body"><pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 16, margin: 0 }}>{saved.slipText}</pre></div>
+        </div>
+        <div className={`callout ${saved.synced ? 'green' : ''}`}>
+          {saved.synced ? t('smsSentMock') : t('savedOffline')}
+        </div>
+        <p className="sub" style={{ textAlign: 'center' }}>{t('slipReadableNote')}</p>
+        <button className="big-btn" onClick={reset}>{t('anotherEntry')}</button>
+        <button className="big-btn secondary" onClick={() => navigate('/operator')}>{t('goHome')}</button>
+      </Shell>
+    );
+  }
 
   return (
     <Shell>
-      <div className="steps">
-        {STEP_ORDER.slice(0, 4).map((k, i) => (
-          <div key={k} className={`dotline ${i < stepIdx || step === 'done' ? 'done' : i === stepIdx ? 'current' : ''}`} />
-        ))}
-      </div>
-      {step === 'member' && (
+      <h1 style={{ marginTop: 18 }}>{t('navNew')}</h1>
+
+      <div className="sect"><span className="n">1</span><h2>{t('selectFarmer')}</h2></div>
+      {member ? (
+        <div className="sel-farmer">
+          <span className="avatar">{(lang === 'mr' ? member.nameMr : member.name).charAt(0)}</span>
+          <span className="meta">
+            <span className="nm">{lang === 'mr' ? member.nameMr : member.name}</span>
+            <span className="dt" style={{ display: 'block' }}>{lang === 'mr' ? member.villageMr : member.village} · {member.farmerId}</span>
+          </span>
+          {member.verified && <span className="badge green">✓</span>}
+          <button className="btn small" onClick={() => setMember(null)}>{t('change')}</button>
+        </div>
+      ) : (
         <>
-          <h1>1/4 · {t('findFarmer')}</h1>
           <div className="field">
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchPlaceholder')} autoFocus />
           </div>
           {filtered.length === 0 && <div className="callout">{t('empty')}</div>}
-          {filtered.slice(0, 20).map((m) => (
-            <button key={m.farmerId} className="list-item" onClick={() => { setMember(m); setStep('crop'); }}>
+          {filtered.slice(0, 6).map((m) => (
+            <button key={m.farmerId} className="list-item" onClick={() => setMember(m)}>
               <span className="avatar">{(lang === 'mr' ? m.nameMr : m.name).charAt(0)}</span>
               <span style={{ flex: 1 }}>
                 <span className="main">{lang === 'mr' ? m.nameMr : m.name}</span>
@@ -225,109 +249,53 @@ export default function EntryWizard() {
         </>
       )}
 
-      {step === 'crop' && (
-        <>
-          <h1>2/4 · {t('selectCrop')}</h1>
-          <p className="sub">{lang === 'mr' ? member?.nameMr : member?.name}</p>
-          <div className="choice-grid">
-            {(['soybean', 'tur'] as Crop[]).map((c) => (
-              <button key={c} className={`choice ${crop === c ? 'sel' : ''}`} onClick={() => setCrop(c)}>{t(c)}</button>
-            ))}
-          </div>
-          <div className="choice-grid">
-            {(['A', 'B'] as Grade[]).map((g) => (
-              <button key={g} className={`choice ${grade === g ? 'sel' : ''}`} onClick={() => setGrade(g)}>{t('grade')} {g}</button>
-            ))}
-          </div>
-          {crop && (
-            <div className="callout green">
-              {t('rateOfDay')}: <strong>{rate != null ? `₹${rate.toLocaleString('en-IN')} ${t('perQuintal')}` : '—'}</strong>
-            </div>
-          )}
-          <div className="row" style={{ marginTop: 14 }}>
-            <button className="btn" onClick={() => setStep('member')}>{t('back')}</button>
-            <button className="btn primary" disabled={!crop || rate == null} onClick={() => setStep('weights')}>{t('next')}</button>
-          </div>
-        </>
+      <div className="sect"><span className="n">2</span><h2>{t('selectCrop')}</h2></div>
+      <div className="choice-grid">
+        {(['soybean', 'tur'] as Crop[]).map((c) => (
+          <button key={c} className={`choice ${crop === c ? 'sel' : ''}`} onClick={() => setCrop(c)}>{t(c)}</button>
+        ))}
+      </div>
+      <div className="seg" style={{ marginTop: 8 }}>
+        {(['A', 'B'] as Grade[]).map((g) => (
+          <button key={g} className={grade === g ? 'sel' : ''} onClick={() => setGrade(g)}>{t('grade')} {g}</button>
+        ))}
+      </div>
+      {crop && (
+        <div className="callout green" style={{ marginTop: 10 }}>
+          {t('rateOfDay')}: <strong>{rate != null ? `₹${rate.toLocaleString('en-IN')} ${t('perQuintal')}` : '—'}</strong>
+        </div>
       )}
 
-      {step === 'weights' && (
-        <>
-          <h1>3/4 · {t('weightsTitle')}</h1>
-          <p className="sub">{lang === 'mr' ? member?.nameMr : member?.name} · {crop ? t(crop) : ''} · {t('grade')} {grade}</p>
-          <div className="field">
-            <label>{t('grossKg')}</label>
-            <input inputMode="decimal" value={gross} onChange={(e) => setGross(e.target.value)} placeholder="1250.0" />
-          </div>
-          <PhotoReader kind="scale" ai={scaleAi} setAi={setScaleAi} onAccept={(v) => setGross(fmtKg(v))} t={t} />
-          <div className="row">
-            <div className="field">
-              <label>{t('tareKg')}</label>
-              <input inputMode="decimal" value={tare} onChange={(e) => setTare(e.target.value)} placeholder="18.0" />
-            </div>
-            <div className="field">
-              <label>{t('moisture')}</label>
-              <input inputMode="decimal" value={moisture} onChange={(e) => setMoisture(e.target.value)} placeholder="11.5" />
-            </div>
-          </div>
-          <PhotoReader kind="moisture" ai={moistAi} setAi={setMoistAi} onAccept={(v) => setMoisture(fmtMoisture(v))} t={t} />
-          {mismatches.length > 0 && <div className="callout red">{t('aiMismatch')} ({mismatches.join(', ')})</div>}
-          {net != null && amount != null && (
-            <div className="card">
-              <div className="kv"><span className="k">{t('netWeight')}</span><span className="v num-lg">{fmtKg(net)} {lang === 'mr' ? 'कि.ग्रॅ.' : 'kg'}</span></div>
-              <div className="kv"><span className="k">{t('amount')}</span><span className="v num-lg">₹{fmtINR(amount)}</span></div>
-            </div>
-          )}
-          <div className="row" style={{ marginTop: 14 }}>
-            <button className="btn" onClick={() => setStep('crop')}>{t('back')}</button>
-            <button className="btn primary" disabled={!weightsValid || mismatches.length > 0} onClick={() => setStep('summary')}>{t('next')}</button>
-          </div>
-        </>
-      )}
+      <div className="sect"><span className="n">3</span><h2>{t('weightsTitle')}</h2></div>
+      <div className="field">
+        <label>{t('grossKg')}</label>
+        <input inputMode="decimal" value={gross} onChange={(e) => setGross(e.target.value)} placeholder="1250.0" />
+      </div>
+      <PhotoReader kind="scale" ai={scaleAi} setAi={setScaleAi} onAccept={(v) => setGross(fmtKg(v))} t={t} />
+      <div className="row">
+        <div className="field">
+          <label>{t('tareKg')}</label>
+          <input inputMode="decimal" value={tare} onChange={(e) => setTare(e.target.value)} placeholder="18.0" />
+        </div>
+        <div className="field">
+          <label>{t('moisture')}</label>
+          <input inputMode="decimal" value={moisture} onChange={(e) => setMoisture(e.target.value)} placeholder="11.5" />
+        </div>
+      </div>
+      <PhotoReader kind="moisture" ai={moistAi} setAi={setMoistAi} onAccept={(v) => setMoisture(fmtMoisture(v))} t={t} />
+      {mismatches.length > 0 && <div className="callout red">{t('aiMismatch')} ({mismatches.join(', ')})</div>}
+      {saveErr && <div className="callout red">{saveErr}</div>}
 
-      {step === 'summary' && member && crop && net != null && amount != null && rate != null && (
-        <>
-          <h1>4/4 · {t('summary')}</h1>
-          <div className="slip">
-            <div className="head"><div className="title">{t('slip')}</div></div>
-            <div className="body">
-            <div className="kv"><span className="k">{t('farmer')}</span><span className="v">{lang === 'mr' ? member.nameMr : member.name}</span></div>
-            <div className="kv"><span className="k">{t('village')}</span><span className="v">{lang === 'mr' ? member.villageMr : member.village}</span></div>
-            <div className="kv"><span className="k">{t('crop')}</span><span className="v">{t(crop)} · {t('grade')} {grade}</span></div>
-            <div className="kv"><span className="k">{t('grossKg')}</span><span className="v">{fmtKg(grossT!)}</span></div>
-            <div className="kv"><span className="k">{t('tareKg')}</span><span className="v">{fmtKg(tareT!)}</span></div>
-            <div className="kv"><span className="k">{t('moisture')}</span><span className="v">{fmtMoisture(moistT!)}%</span></div>
-            <div className="kv"><span className="k">{t('netWeight')}</span><span className="v num-lg">{fmtKg(net)}</span></div>
-            <div className="kv"><span className="k">{t('rateOfDay')}</span><span className="v">₹{rate.toLocaleString('en-IN')} {t('perQuintal')}</span></div>
-            </div>
-            <div className="amount"><div className="num-xl">₹{fmtINR(amount)}</div></div>
+      <div style={{ height: 130 }} />
+      <div className="actionbar">
+        <div className="inner">
+          <div className="live">
+            <span>{t('netWeight')}: <strong>{net != null ? `${fmtKg(net)} ${lang === 'mr' ? 'कि.ग्रॅ.' : 'kg'}` : '—'}</strong></span>
+            <span className="amt">{amount != null ? `₹${fmtINR(amount)}` : '₹ —'}</span>
           </div>
-          {saveErr && <div className="callout red">{saveErr}</div>}
-          <div className="row" style={{ marginTop: 14 }}>
-            <button className="btn" onClick={() => setStep('weights')}>{t('back')}</button>
-            <button className="btn primary" disabled={busy} onClick={doSave}>{t('saveEntry')}</button>
-          </div>
-        </>
-      )}
-
-      {step === 'done' && saved && (
-        <>
-          <h1>{t('slip')}</h1>
-          <div className="slip">
-            <div className="head">
-              <div className="title">{t('appName')}</div>
-              <div className="no">{saved.synced ? `${t('officialSlip')} ${saved.slipNo}` : t('savedOffline')}</div>
-            </div>
-            <div className="body"><pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 16, margin: 0 }}>{saved.slipText}</pre></div>
-          </div>
-          <div className={`callout ${saved.synced ? 'green' : ''}`}>
-            {saved.synced ? t('smsSentMock') : t('savedOffline')}
-          </div>
-          <p className="sub" style={{ textAlign: 'center' }}>{t('slipReadableNote')}</p>
-          <button className="big-btn" onClick={reset}>{t('anotherEntry')}</button>
-          <button className="big-btn secondary" onClick={() => navigate('/operator')}>{t('goHome')}</button>
-        </>
-      )}
+          <button className="big-btn" disabled={!canSave} onClick={doSave}>{busy ? t('loading') : t('saveEntry')}</button>
+        </div>
+      </div>
     </Shell>
   );
 }

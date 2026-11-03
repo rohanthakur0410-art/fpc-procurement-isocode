@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom';
 import type { SessionUser } from '@app/shared';
 import { api } from './api';
 import { translate, type Lang } from './i18n';
@@ -23,6 +23,37 @@ interface AppState {
 const Ctx = createContext<AppState>(null as unknown as AppState);
 export const useApp = () => useContext(Ctx);
 
+function BottomNav() {
+  const { user, t } = useApp();
+  const loc = useLocation();
+  if (!user) return null;
+  if (loc.pathname === '/operator/entry') return null;
+  const items = user.role === 'office'
+    ? [
+        { to: '/office', ic: '📊', k: 'navDash' },
+        { to: '/office/prices', ic: '💹', k: 'navPrices' },
+        { to: '/office/payments', ic: '💸', k: 'navPay' },
+        { to: '/office/sms', ic: '✉️', k: 'navSms' },
+      ]
+    : [
+        { to: '/operator', ic: '🏠', k: 'navHome' },
+        { to: '/operator/entry', ic: '➕', k: 'navNew' },
+        { to: '/operator/outbox', ic: '☁️', k: 'navQueue' },
+      ];
+  return (
+    <nav className="bottomnav">
+      <div className="inner">
+        {items.map((it) => (
+          <Link key={it.to} to={it.to} className={loc.pathname === it.to ? 'active' : ''}>
+            <span className="ic">{it.ic}</span>
+            {t(it.k)}
+          </Link>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export function Shell({ children, wide }: { children: ReactNode; wide?: boolean }) {
   const { user, lang, setLang, t, signOut } = useApp();
   return (
@@ -42,6 +73,7 @@ export function Shell({ children, wide }: { children: ReactNode; wide?: boolean 
         </div>
       </div>
       <div className={wide ? 'page wide' : 'page'}>{children}</div>
+      <BottomNav />
     </div>
   );
 }
