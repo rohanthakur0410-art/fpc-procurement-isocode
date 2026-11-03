@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { fmtKg, fmtINR, entryNetTenths, entryAmountPaisa } from '@app/shared';
 import { useApp, Shell } from '../App';
+import { Icon } from '../icons';
 import { getDb } from '../offline/db';
 import { trySync, refreshReferenceData, isOnlineNow, isForceOffline, setForceOffline } from '../offline/sync';
 
@@ -19,7 +20,7 @@ export default function OperatorHome() {
     setPending(out.filter((e: any) => e.state === 'pending').length);
     const sent = await d.getAll('sent');
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
-    setTodaySlips(sent.filter((e: any) => e.deviceTs.startsWith(today)).sort((a: any, b: any) => b.seq - a.seq));
+    setTodaySlips(sent.filter((e: any) => e.deviceTs.startsWith(today)).sort((a: any, b: any) => a.seq - b.seq));
     setOnline(isOnlineNow());
   }, []);
 
@@ -40,52 +41,105 @@ export default function OperatorHome() {
     setSyncing(false);
   };
 
-  const firstName = (user?.name || '').split(' ')[0];
+  const totalNet = todaySlips.reduce((s, e) => s + entryNetTenths(e.payload), 0);
+  const totalAmt = todaySlips.reduce((s, e) => s + entryAmountPaisa(e.payload), 0);
+  const dateStr = new Date().toLocaleDateString(lang === 'mr' ? 'mr-IN' : 'en-IN', {
+    timeZone: 'Asia/Kolkata', weekday: 'long', day: 'numeric', month: 'long',
+  });
 
   return (
     <Shell>
-      <p className="greet">
-        {t('greeting')},
-        <strong>{firstName} 🙏</strong>
-      </p>
-      <p className="sub" style={{ marginBottom: 4 }}>{user?.centreCode} · {new Date().toLocaleDateString(lang === 'mr' ? 'mr-IN' : 'en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long' })}</p>
+      <header className="dayhead">
+        <div className="dh-top">
+          <span className="dh-date">{dateStr}</span>
+          <span className="dh-centre">{user?.centreCode}</span>
+        </div>
+        <h1 className="dh-title">{t('todaysRegister')}</h1>
+        <div className="daytotals">
+          <div className="dt-cell">
+            <span className="dt-num">{todaySlips.length}</span>
+            <span className="dt-lbl">{t('slipsToday')}</span>
+          </div>
+          <div className="dt-cell">
+            <span className="dt-num">{fmtKg(totalNet)}</span>
+            <span className="dt-lbl">{t('netWeight')} (kg)</span>
+          </div>
+          <div className="dt-cell">
+            <span className="dt-num">₹{fmtINR(totalAmt)}</span>
+            <span className="dt-lbl">{t('amount')}</span>
+          </div>
+        </div>
+      </header>
 
-      <Link to="/operator/entry"><button className="big-btn">➕ {t('newEntry')}</button></Link>
+      <Link to="/operator/entry" className="ticket-cta">
+        <span className="tc-ic"><Icon name="plus" size={26} /></span>
+        <span className="tc-txt">
+          <strong>{t('newEntry')}</strong>
+          <small>{t('startNewEntry')}</small>
+        </span>
+        <span className="tc-arrow">→</span>
+      </Link>
 
-      <div className="status-strip">
+      <section className="register">
+        <div className="reg-head">
+          <span>{t('todayCollection')}</span>
+          <span className="reg-note">{t('registerNote')}</span>
+        </div>
+        <table className="reg-table">
+          <thead>
+            <tr>
+              <th>{t('colNo')}</th>
+              <th>{t('farmer')}</th>
+              <th className="r">{t('netWeight')}</th>
+              <th className="r">{t('colAmount')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {todaySlips.map((e: any, i: number) => (
+              <tr key={e.uuid}>
+                <td className="mono-sm">{e.slipNo}</td>
+                <td>{e.payload.farmerId} · {t(e.payload.crop)}</td>
+                <td className="r mono-sm">{fmtKg(entryNetTenths(e.payload))}</td>
+                <td className="r mono-sm">₹{fmtINR(entryAmountPaisa(e.payload))}</td>
+              </tr>
+            ))}
+            {todaySlips.length === 0 && (
+              <>
+                {[0, 1, 2].map((i) => (
+                  <tr key={i} className="empty-row"><td colSpan={4}>&nbsp;</td></tr>
+                ))}
+                <tr className="watermark-row">
+                  <td colSpan={4}><span className="watermark">{t('noEntryYet')}</span></td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      <footer className="sync-line">
         <span className="net-status">
           <span className={`dot ${online ? 'on' : 'off'}`}></span>
           {online ? t('online') : t('offline')}
-          {pending > 0 && <span className="badge amber">{pending} {t('pendingSync')}</span>}
+          {pending > 0
+            ? <span className="badge amber">{pending} {t('pendingSync')}</span>
+            : <span className="sub2">· {t('allSynced')}</span>}
         </span>
-        <button className="btn small" onClick={doSync} disabled={!online || syncing || pending === 0}>
-          {syncing ? t('syncing') : t('syncNow')}
-        </button>
-      </div>
+        {pending > 0 && online && (
+          <button className="btn small" onClick={doSync} disabled={syncing}>
+            <Icon name="sync" size={15} /> {syncing ? t('syncing') : t('syncNow')}
+          </button>
+        )}
+      </footer>
 
-      <div className="sect"><span className="n">✓</span><h2>{t('todayCollection')} ({todaySlips.length})</h2></div>
-      {todaySlips.length === 0 && <div className="callout green">{t('empty')}</div>}
-      {todaySlips.map((e: any) => (
-        <div key={e.uuid} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
-          <span className="avatar">{t(e.payload.crop).charAt(0)}</span>
-          <span style={{ flex: 1 }}>
-            <span className="main" style={{ fontWeight: 700, display: 'block' }}>{e.payload.farmerId} · {t(e.payload.crop)}</span>
-            <span className="sub2">{fmtKg(entryNetTenths(e.payload))} kg · ₹{fmtINR(entryAmountPaisa(e.payload))}</span>
-          </span>
-          <span className={`badge ${e.status === 'flagged' ? 'amber' : 'green'}`}>{e.slipNo}</span>
-        </div>
-      ))}
-
-      <div className="card" style={{ marginTop: 18 }}>
-        <div className="kv">
-          <span className="k">{t('demoOffline')}</span>
-          <input
-            type="checkbox"
-            checked={forced}
-            onChange={(e) => { setForceOffline(e.target.checked); setForced(e.target.checked); setOnline(isOnlineNow()); }}
-          />
-        </div>
-      </div>
+      <label className="demo-toggle">
+        <input
+          type="checkbox"
+          checked={forced}
+          onChange={(e) => { setForceOffline(e.target.checked); setForced(e.target.checked); setOnline(isOnlineNow()); }}
+        />
+        <span>{t('demoOffline')}</span>
+      </label>
     </Shell>
   );
 }

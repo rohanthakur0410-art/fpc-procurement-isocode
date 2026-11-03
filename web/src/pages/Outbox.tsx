@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fmtKg, fmtINR, entryNetTenths, entryAmountPaisa } from '@app/shared';
 import { useApp, Shell } from '../App';
+import { Icon } from '../icons';
 import { getDb } from '../offline/db';
 import { trySync, isOnlineNow } from '../offline/sync';
 
@@ -34,23 +35,37 @@ export default function Outbox() {
 
   return (
     <Shell>
-      <h1>{t('outbox')}</h1>
-      <p className="sub">{pending.length === 0 ? t('allSynced') : `${pending.length} ${t('pendingSync')}`}</p>
-      <button className="big-btn" onClick={doSync} disabled={!online || syncing || pending.length === 0}>
-        {syncing ? t('syncing') : t('syncNow')}
-      </button>
-      {!online && <div className="callout">{t('savedOffline')}</div>}
+      <header className="dayhead">
+        <h1 className="dh-title">{t('outbox')}</h1>
+      </header>
 
+      {pending.length === 0 && sent.length === 0 && (
+        <div className="queue-empty">
+          <span className="qe-ic"><Icon name="tray" size={30} /></span>
+          <strong>{t('allSynced')}</strong>
+          <span className="sub2">{t('queueEmptyNote')}</span>
+        </div>
+      )}
+
+      {pending.length > 0 && (
+        <button className="big-btn" onClick={doSync} disabled={!online || syncing}>
+          {syncing ? t('syncing') : `${t('syncNow')} (${pending.length})`}
+        </button>
+      )}
+      {!online && pending.length > 0 && <div className="callout">{t('savedOffline')}</div>}
+
+      {pending.length > 0 && <div className="queue-label">{t('pendingSync')} · {pending.length}</div>}
       {pending.map((e) => (
-        <div key={e.uuid} className="card">
+        <div key={e.uuid} className="card queued">
           <div className="kv"><span className="k">{nameOf(e)}</span><span className="badge amber">{t('pendingSync')}</span></div>
           <div className="kv"><span className="k">{t(e.payload.crop)}</span><span className="v">{fmtKg(netOf(e))} kg · ₹{fmtINR(amountOf(e))}</span></div>
           {e.state === 'error' && <div className="callout red">{e.error}</div>}
         </div>
       ))}
 
+      {sent.length > 0 && <div className="queue-label">{t('allSynced')} · {sent.length}</div>}
       {sent.map((e) => (
-        <div key={e.uuid} className="card">
+        <div key={e.uuid} className="card done">
           <div className="kv">
             <span className="k">{nameOf(e)}</span>
             <span className={`badge ${e.status === 'flagged' ? 'amber' : 'green'}`}>{e.slipNo}</span>
@@ -59,9 +74,6 @@ export default function Outbox() {
           {e.flags?.length > 0 && <div className="sub2">{e.flags.map((f: string) => t(`flag_${f}`)).join(' · ')}</div>}
         </div>
       ))}
-
-      <Link to="/operator"><button className="big-btn secondary">{t('goHome')}</button></Link>
-      <p className="sub" style={{ marginTop: 8 }}>{lang === 'mr' ? '' : ''}</p>
     </Shell>
   );
 }

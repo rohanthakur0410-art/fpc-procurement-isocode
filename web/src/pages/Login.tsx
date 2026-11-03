@@ -26,8 +26,11 @@ export default function Login({ onLogin }: { onLogin: (u: SessionUser) => void }
 
   return (
     <Shell>
-      <h1>{t('signIn')}</h1>
-      <p className="sub">{t('tagline')}</p>
+      <div className="login-cover">
+        <div className="lc-band">
+          <h1>{t('signIn')}</h1>
+          <p className="sub">{t('tagline')}</p>
+        </div>
       <form onSubmit={submit}>
         <div className="field">
           <label>{t('username')}</label>
@@ -42,6 +45,7 @@ export default function Login({ onLogin }: { onLogin: (u: SessionUser) => void }
           {t('signIn')}
         </button>
       </form>
+      </div>
     </Shell>
   );
 }

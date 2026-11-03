@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom';
+import { Icon } from './icons';
 import type { SessionUser } from '@app/shared';
 import { api } from './api';
 import { translate, type Lang } from './i18n';
@@ -30,22 +31,22 @@ function BottomNav() {
   if (loc.pathname === '/operator/entry') return null;
   const items = user.role === 'office'
     ? [
-        { to: '/office', ic: '📊', k: 'navDash' },
-        { to: '/office/prices', ic: '📈', k: 'navPrices' },
-        { to: '/office/payments', ic: '🧾', k: 'navPay' },
-        { to: '/office/sms', ic: '✉️', k: 'navSms' },
+        { to: '/office', ic: 'gauge', k: 'navDash' },
+        { to: '/office/prices', ic: 'tag', k: 'navPrices' },
+        { to: '/office/payments', ic: 'receipt', k: 'navPay' },
+        { to: '/office/sms', ic: 'mail', k: 'navSms' },
       ]
     : [
-        { to: '/operator', ic: '🏠', k: 'navHome' },
-        { to: '/operator/entry', ic: '➕', k: 'navNew' },
-        { to: '/operator/outbox', ic: '☁️', k: 'navQueue' },
+        { to: '/operator', ic: 'home', k: 'navHome' },
+        { to: '/operator/entry', ic: 'plus', k: 'navNew' },
+        { to: '/operator/outbox', ic: 'tray', k: 'navQueue' },
       ];
   return (
     <nav className="bottomnav">
       <div className="inner">
         {items.map((it) => (
           <Link key={it.to} to={it.to} className={loc.pathname === it.to ? 'active' : ''}>
-            <span className="ic">{it.ic}</span>
+            <span className="ic"><Icon name={it.ic} size={21} /></span>
             {t(it.k)}
           </Link>
         ))}

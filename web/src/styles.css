@@ -448,3 +448,124 @@ table.simple th { border-bottom: 1.5px solid var(--line); }
 /* wizard progress legacy */
 .steps .dotline.done { background: var(--saffron); }
 .steps .dotline.current { background: #f0cf8a; }
+
+/* ============================================================
+   v5 COMPOSITION: day-book headers, register tables, ticket CTA.
+   ============================================================ */
+
+/* day-book page header */
+.dayhead { margin: 20px 0 18px; }
+.dh-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.dh-date { font-size: 13.5px; color: var(--muted); font-weight: 600; }
+.dh-centre {
+  font-family: ui-monospace, monospace; font-size: 12.5px; font-weight: 700; color: var(--navy);
+  border: 1.5px solid var(--navy); border-radius: 5px; padding: 2px 8px; letter-spacing: 0.5px;
+}
+.dh-title { font-size: 24px; font-weight: 800; letter-spacing: -0.2px; margin: 0; }
+.dh-title::after { content: ''; display: block; width: 44px; height: 3px; background: var(--saffron); margin-top: 6px; }
+
+/* day totals strip: ruled register totals */
+.daytotals {
+  display: flex; margin-top: 14px; border: 1.5px solid var(--line); border-radius: 8px;
+  background: var(--card); overflow: hidden;
+}
+.dt-cell { flex: 1; padding: 12px 10px; text-align: center; }
+.dt-cell + .dt-cell { border-left: 1.5px solid var(--line); }
+.dt-num {
+  display: block; font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 19px; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere; line-height: 1.2;
+}
+.dt-lbl { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+
+/* ticket CTA: a blank slip waiting to be punched */
+.ticket-cta {
+  display: flex; align-items: center; gap: 14px; text-decoration: none;
+  background: var(--navy); color: #fff; border-radius: 10px; border-bottom: 3px solid var(--saffron);
+  padding: 16px 18px; margin: 6px 0 20px; min-height: 64px;
+}
+.ticket-cta:active { transform: translateY(1px); }
+.tc-ic {
+  width: 44px; height: 44px; border-radius: 8px; flex: none;
+  border: 1.5px dashed rgba(255,255,255,0.55);
+  display: flex; align-items: center; justify-content: center; color: var(--saffron);
+}
+.tc-txt { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.tc-txt strong { font-size: 18.5px; font-weight: 800; color: #fff; }
+.tc-txt small { font-size: 12.5px; color: rgba(255,255,255,0.75); }
+.tc-arrow { font-size: 20px; color: var(--saffron); font-weight: 800; }
+
+/* register table */
+.register { border: 1.5px solid var(--line); border-radius: 10px; background: var(--card); overflow: hidden; margin-bottom: 14px; }
+.reg-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  background: var(--navy); color: #fff; padding: 10px 14px; font-weight: 700; font-size: 14.5px;
+}
+.reg-note { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.65); text-align: right; }
+.reg-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.reg-table th {
+  text-align: left; padding: 8px 12px; font-size: 11.5px; color: var(--muted); font-weight: 700;
+  border-bottom: 1.5px solid var(--line); background: #faf7ef;
+}
+.reg-table td { padding: 10px 12px; border-bottom: 1px dashed #e3dccb; vertical-align: top; }
+.reg-table th.r, .reg-table td.r { text-align: right; font-variant-numeric: tabular-nums; }
+.reg-table tr:last-child td { border-bottom: none; }
+.reg-table tr.empty-row td { border-bottom: 1px dashed #e3dccb; height: 34px; }
+.reg-table tr.watermark-row td { text-align: center; padding: 4px 0 16px; border-bottom: none; }
+.watermark { font-size: 13.5px; color: #b9b2a0; font-weight: 600; letter-spacing: 0.3px; }
+.mono-sm { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; font-weight: 600; }
+
+/* sync footer line */
+.sync-line {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 2px; font-size: 13.5px;
+}
+.sync-line .btn { display: inline-flex; align-items: center; gap: 6px; }
+
+/* demo toggle: quiet inline row */
+.demo-toggle {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 8px 2px;
+  font-size: 12.5px; color: var(--muted); cursor: pointer;
+}
+.demo-toggle input { accent-color: var(--navy); }
+
+/* office day-book summary */
+.daybook { border: 1.5px solid var(--line); border-radius: 10px; background: var(--card); overflow: hidden; margin-bottom: 14px; }
+.db-head { background: var(--navy); color: #fff; padding: 10px 14px; font-weight: 700; font-size: 14.5px; }
+.db-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 11px 14px; border-bottom: 1px dashed #e3dccb; font-size: 15px;
+}
+.db-row:last-child { border-bottom: none; }
+.db-k { color: var(--muted); font-weight: 600; }
+.db-v {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-weight: 800; font-size: 17px;
+  color: var(--navy); font-variant-numeric: tabular-nums; text-align: right;
+}
+.db-v small { font-size: 12px; color: var(--muted); font-weight: 600; }
+.db-v.flag { color: var(--red); }
+
+/* login: ledger cover */
+.login-cover {
+  margin-top: 34px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card);
+  overflow: hidden;
+}
+.login-cover .lc-band { background: var(--navy); color: #fff; padding: 18px; border-bottom: 3px solid var(--saffron); }
+.login-cover .lc-band h1 { margin: 0; font-size: 21px; color: #fff; }
+.login-cover .lc-band .sub { color: rgba(255,255,255,0.75); margin: 4px 0 0; }
+.login-cover form { padding: 18px; }
+
+/* outbox queue composition */
+.queue-empty {
+  border: 1.5px dashed var(--line); border-radius: 10px; padding: 34px 20px; margin-top: 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  color: var(--navy);
+}
+.queue-empty .qe-ic { color: var(--saffron-deep); }
+.queue-empty strong { font-size: 16.5px; }
+.queue-label { font-size: 12px; font-weight: 700; color: var(--muted); margin: 16px 2px 8px; letter-spacing: 0.3px; }
+.card.queued { border-left: 4px solid var(--saffron); }
+.card.done { border-left: 4px solid #c3cbdd; }
+
+/* entry section headers: ruled step marks */
+.sect { border-bottom: 1.5px solid var(--line); padding-bottom: 7px; margin: 24px 0 12px; }
