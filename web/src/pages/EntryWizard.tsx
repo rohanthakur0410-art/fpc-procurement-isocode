@@ -195,8 +195,16 @@ export default function EntryWizard() {
     setSaved(null); setQ('');
   };
 
+  const STEP_ORDER = ['member', 'crop', 'weights', 'summary', 'done'];
+  const stepIdx = STEP_ORDER.indexOf(step);
+
   return (
     <Shell>
+      <div className="steps">
+        {STEP_ORDER.slice(0, 4).map((k, i) => (
+          <div key={k} className={`dotline ${i < stepIdx ? 'done' : ''}`} />
+        ))}
+      </div>
       {step === 'member' && (
         <>
           <h1>1/4 · {t('findFarmer')}</h1>
@@ -206,7 +214,8 @@ export default function EntryWizard() {
           {filtered.length === 0 && <div className="callout">{t('empty')}</div>}
           {filtered.slice(0, 20).map((m) => (
             <button key={m.farmerId} className="list-item" onClick={() => { setMember(m); setStep('crop'); }}>
-              <span>
+              <span className="avatar">{(lang === 'mr' ? m.nameMr : m.name).charAt(0)}</span>
+              <span style={{ flex: 1 }}>
                 <span className="main">{lang === 'mr' ? m.nameMr : m.name}</span>
                 <span className="sub2" style={{ display: 'block' }}>{lang === 'mr' ? m.villageMr : m.village} · {m.farmerId} · {m.landAcres} {t('acre')}</span>
               </span>
@@ -281,6 +290,7 @@ export default function EntryWizard() {
           <h1>4/4 · {t('summary')}</h1>
           <div className="slip">
             <div className="head"><div className="title">{t('slip')}</div></div>
+            <div className="body">
             <div className="kv"><span className="k">{t('farmer')}</span><span className="v">{lang === 'mr' ? member.nameMr : member.name}</span></div>
             <div className="kv"><span className="k">{t('village')}</span><span className="v">{lang === 'mr' ? member.villageMr : member.village}</span></div>
             <div className="kv"><span className="k">{t('crop')}</span><span className="v">{t(crop)} · {t('grade')} {grade}</span></div>
@@ -289,6 +299,7 @@ export default function EntryWizard() {
             <div className="kv"><span className="k">{t('moisture')}</span><span className="v">{fmtMoisture(moistT!)}%</span></div>
             <div className="kv"><span className="k">{t('netWeight')}</span><span className="v num-lg">{fmtKg(net)}</span></div>
             <div className="kv"><span className="k">{t('rateOfDay')}</span><span className="v">₹{rate.toLocaleString('en-IN')} {t('perQuintal')}</span></div>
+            </div>
             <div className="amount"><div className="num-xl">₹{fmtINR(amount)}</div></div>
           </div>
           {saveErr && <div className="callout red">{saveErr}</div>}
@@ -307,7 +318,7 @@ export default function EntryWizard() {
               <div className="title">{t('appName')}</div>
               <div className="no">{saved.synced ? `${t('officialSlip')} ${saved.slipNo}` : t('savedOffline')}</div>
             </div>
-            <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 16 }}>{saved.slipText}</pre>
+            <div className="body"><pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 16, margin: 0 }}>{saved.slipText}</pre></div>
           </div>
           <div className={`callout ${saved.synced ? 'green' : ''}`}>
             {saved.synced ? t('smsSentMock') : t('savedOffline')}
