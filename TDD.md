@@ -118,8 +118,8 @@ Two kinds, clearly separated:
 
 ## 7. Payments and SMS (mocked, as the brief instructs)
 
-- **SMS:** every accepted purchase queues a Marathi slip message
-  (`हिंगोली अग्रो प्रोसेसर्स FPC ...`) in an internal SMS log table. The office
+- **SMS:** every accepted purchase queues a Marathi slip message (the same text as the on-screen slip,
+  branded शेतकरी सरल) in an internal SMS log table. The office
   can view the log. No real SMS gateway is called.
 - **Weekly payment run:** the office selects approved, unpaid purchases and
   generates a bulk payment CSV (beneficiary, masked account, IFSC, exact
