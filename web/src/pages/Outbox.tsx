@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fmtKg, fmtINR, netTenths, amountPaisa } from '@app/shared';
+import { fmtKg, fmtINR, entryNetTenths, entryAmountPaisa } from '@app/shared';
 import { useApp, Shell } from '../App';
 import { getDb } from '../offline/db';
 import { trySync, isOnlineNow } from '../offline/sync';
@@ -28,10 +28,9 @@ export default function Outbox() {
   };
 
   const nameOf = (e: any) => e.payload?.farmerId ?? '';
-  // Show net weight and the real payable amount (same calc the server applies):
-  // gross - tare, minus 1% per moisture point above 12.
-  const netOf = (e: any) => netTenths(e.payload.grossTenths, e.payload.tareTenths, e.payload.moistureTenths);
-  const amountOf = (e: any) => amountPaisa(netOf(e), e.payload.rateRupees);
+  // Show net weight and the real payable amount (same calc the server applies).
+  const netOf = (e: any) => entryNetTenths(e.payload);
+  const amountOf = (e: any) => entryAmountPaisa(e.payload);
 
   return (
     <Shell>

@@ -153,7 +153,7 @@ Two kinds, clearly separated:
 
 ## 10. Testing
 
-25 automated tests (`npx vitest run`):
+29 automated tests (`npx vitest run`):
 
 - **Calculation:** every brief sample row exact to the paisa; fractional
   moisture; rounding behaviour.
