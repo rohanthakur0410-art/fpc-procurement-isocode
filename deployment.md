@@ -23,16 +23,21 @@ offline queue and sync can be tried without disabling Wi-Fi.
 
 ## Deployment
 
-Not yet deployed. Planned: Render free web service (single Node process serving
-the built frontend), persistent disk for the SQLite file.
+Private review demo: https://fpc-procurement.onrender.com
+
+Render Free runs one Node process serving the built frontend. It has no persistent
+SQLite disk: demo entries are temporary and can reset on service sleep or redeploy.
+The free service can sleep after about 15 idle minutes and may take about a minute
+to wake. This is not suitable for real procurement data. Source publication and
+submission are separate review steps; a live demo is not proof of production readiness.
 
 ## Environment variables (names only)
 
 - `PORT` - HTTP port (default 3000)
 - `DB_PATH` - SQLite file location (default `server/data/app.db`)
 - `SESSION_SECRET` - signs the login session cookie; must be set in any real deployment
-- `GEMINI_API_KEY` - optional; enables AI reading of scale/moisture-meter photos. Without it the app falls back to manual entry (the brief's "when it is wrong" path)
+- `GEMINI_API_KEY` - optional; intended to enable AI reading of scale/moisture-meter photos. Without it the app falls back to manual entry (the brief's "when it is wrong" path)
 - `GEMINI_MODEL` - optional model override (default `gemini-2.0-flash`)
 
-No other services or secrets are required. SMS and the bank are mocked inside
+Photo AI remains unverified with a live authorized key; do not infer availability or a free billing tier from a saved key. No AI-provider key is needed for the tested manual workflow. SMS and the bank are mocked inside
 the app, as the brief instructs.
