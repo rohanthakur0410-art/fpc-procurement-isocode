@@ -242,3 +242,45 @@ describe('retry identity and bank safety', () => {
     db.prepare('UPDATE members SET verified=1 WHERE id=?').run(p.member_id);
   });
 });
+
+
+describe('simultaneous and retried sync',()=>{
+  it('holds distinct deliveries with the exact same farmer timestamp',async()=>{
+    const e1=await makeEntry('81111111-1111-4111-8111-111111111111',1,GENESIS,{farmerId:'F0009',moistureTenths:113});
+    const e2=await buildEntry('82222222-2222-4222-8222-222222222222',2,e1.hash,e1.deviceTs,e1.payload);
+    const r=await call('/api/sync',{method:'POST',cookie:operatorCookie,body:{deviceId:'equal-time',entries:[e1,e2]}});
+    expect(r.body.results[1].flags).toContain('same_farmer_within_hour');
+  });
+  it('does not double-store or regress the anchor on simultaneous identical batches',async()=>{
+    const e=await makeEntry('83333333-3333-4333-8333-333333333333',1,GENESIS,{moistureTenths:114});
+    const body={deviceId:'parallel-retry',entries:[e]};
+    const results=await Promise.all([call('/api/sync',{method:'POST',cookie:operatorCookie,body}),call('/api/sync',{method:'POST',cookie:operatorCookie,body})]);
+    expect(results.flatMap(r=>r.body.results).map(r=>r.result).sort()).toEqual(['duplicate','stored']);
+    expect((db.prepare('SELECT count(*) c FROM purchases WHERE client_uuid=?').get(e.uuid) as any).c).toBe(1);
+    expect((db.prepare('SELECT last_hash FROM device_chains WHERE device_id=?').get(body.deviceId) as any).last_hash).toBe(e.hash);
+  });
+  it('blocks operator access to bank export and centrally set prices',async()=>{
+    expect((await call('/api/payment-runs/1/file',{cookie:operatorCookie})).status).toBe(403);
+    expect((await call('/api/prices',{method:'POST',cookie:operatorCookie,body:{priceDate:'2026-11-04',crop:'soybean',grade:'A',rateRupees:1}})).status).toBe(403);
+  });
+});
+
+
+describe('unpriced draft conversion audit',()=>{
+  it('keeps original collection time and explicit pricing-review metadata',async()=>{
+    const reviewedAt=new Date().toISOString();
+    const e=await makeEntry('91111111-1111-4111-8111-111111111111',1,GENESIS,{draftId:'92222222-2222-4222-8222-222222222222',priceReviewedAt:reviewedAt});
+    const r=await call('/api/sync',{method:'POST',cookie:operatorCookie,body:{deviceId:'draft-conversion',entries:[e]}});
+    expect(r.body.results[0].result).toBe('stored');
+    const row=db.prepare('SELECT device_ts,draft_id,price_reviewed_at FROM purchases WHERE client_uuid=?').get(e.uuid) as any;
+    expect(row.device_ts).toBe(e.deviceTs);expect(row.price_reviewed_at).toBe(reviewedAt);expect(row.draft_id).toBe(e.payload.draftId);
+    const again=await makeEntry('95555555-5555-4555-8555-555555555555',1,GENESIS,{draftId:e.payload.draftId,priceReviewedAt:reviewedAt});
+    const repeat=await call('/api/sync',{method:'POST',cookie:operatorCookie,body:{deviceId:'another-conversion',entries:[again]}});
+    expect(repeat.body.results[0].error).toBe('draft_already_converted');
+  });
+  it('rejects a conversion missing its explicit price-review timestamp',async()=>{
+    const e=await makeEntry('93333333-3333-4333-8333-333333333333',1,GENESIS,{draftId:'94444444-4444-4444-8444-444444444444'});
+    const r=await call('/api/sync',{method:'POST',cookie:operatorCookie,body:{deviceId:'bad-draft-conversion',entries:[e]}});
+    expect(r.status).toBe(400);
+  });
+});

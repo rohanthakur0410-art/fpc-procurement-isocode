@@ -16,8 +16,10 @@ let dbp: Promise<IDBPDatabase> | null = null;
 
 export function getDb(): Promise<IDBPDatabase> {
   if (!dbp) {
-    dbp = openDB('fpc-offline', 1, {
-      upgrade(d) {
+    dbp = openDB('fpc-offline', 2, {
+      upgrade(d, oldVersion) {
+        if (oldVersion < 2) d.createObjectStore('drafts', {keyPath: 'id'});
+        if (oldVersion >= 1) return;
         d.createObjectStore('kv');
         d.createObjectStore('members', { keyPath: 'farmerId' });
         d.createObjectStore('prices', { keyPath: 'key' });
@@ -58,4 +60,16 @@ export async function cachePrices(date: string, prices: PriceRow[]): Promise<voi
 export async function cachedRate(date: string, crop: string, grade: string): Promise<number | null> {
   const row = await (await getDb()).get('prices', `${date}|${crop}|${grade}`);
   return row?.rateRupees ?? null;
+}
+
+export interface CollectionDraft {
+  id: string;
+  collectedAt: string;
+  centreCode: string;
+  farmerId: string;
+  crop: string;
+  grade: string;
+  grossTenths: number;
+  tareTenths: number;
+  moistureTenths: number;
 }

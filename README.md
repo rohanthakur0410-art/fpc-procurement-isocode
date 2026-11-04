@@ -28,7 +28,7 @@ Demo logins: `operator` / `demo1234` (centre C07), `office` / `demo1234`.
 
 ## Test
 
-    npm test           # 47 tests: brief sample figures, hash chain, sync, flags, payment run
+    npm test           # 52 tests: brief sample figures, hash chain, sync, flags, payment run
 
 ## A note on the commit history
 
@@ -45,8 +45,7 @@ their own dates.
 The registry is seeded and read-only, bank fields and SMS are synthetic, and the
 payment CSV is a generic unverified bank layout. Photo reading is coded but has
 not been verified with a live authorized key. Hashes are unsigned tamper-evidence,
-not trusted timestamps or tamper-proof records. Today's price must be cached to
-start an offline entry. Sync holds missing/mismatched dated prices for review;
+not trusted timestamps or tamper-proof records. Without a dated cached price, collections can be kept as local unpriced drafts for explicit dated-price review later. Sync holds missing/mismatched dated prices for review;
 this is a conservative prototype assumption, not a confirmed FPC pricing policy.
 See TDD.md for the threat model and unfinished workflows. The free demo database
 is temporary, not production storage.

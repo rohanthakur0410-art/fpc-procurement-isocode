@@ -28,24 +28,28 @@ export async function ensureDeviceId(): Promise<string> {
 
 // Every entry is written to the on-phone outbox first (works with zero network),
 // chained to the previous entry from this device, then synced when possible.
-export async function saveEntry(payload: PurchasePayload): Promise<OutboxEntry> {
+export async function saveEntry(payload: PurchasePayload, collectedAt?: string, draftId?: string): Promise<OutboxEntry> {
   // Web Locks serializes sequence allocation across same-origin tabs.
-  if (navigator.locks) return navigator.locks.request('fpc-entry-save', () => saveEntryLocked(payload));
-  return saveEntryLocked(payload);
+  if (navigator.locks) return navigator.locks.request('fpc-entry-save', () => saveEntryLocked(payload, collectedAt, draftId));
+  return saveEntryLocked(payload, collectedAt, draftId);
 }
 
-async function saveEntryLocked(payload: PurchasePayload): Promise<OutboxEntry> {
+async function saveEntryLocked(payload: PurchasePayload, collectedAt?: string, draftId?: string): Promise<OutboxEntry> {
   const deviceId = await ensureDeviceId();
   const seq = ((await kvGet<number>('seq')) ?? 0) + 1;
   const prevHash = (await kvGet<string>('lastHash')) ?? GENESIS;
-  const deviceTs = new Date().toISOString();
+  const deviceTs = collectedAt ?? new Date().toISOString();
   const built = await buildEntry(crypto.randomUUID(), seq, prevHash, deviceTs, payload as unknown as Record<string, unknown>);
   const entry: OutboxEntry = { ...built, deviceId, payload, state: 'pending' };
   const d = await getDb();
-  const tx = d.transaction(['outbox', 'kv'], 'readwrite');
+  const tx = d.transaction(['outbox', 'kv', 'drafts'], 'readwrite');
+  if (draftId && !await tx.objectStore('drafts').get(draftId)) {
+    tx.abort(); throw new Error('draft_already_converted');
+  }
   await tx.objectStore('outbox').put(entry);
   await tx.objectStore('kv').put(seq, 'seq');
   await tx.objectStore('kv').put(entry.hash, 'lastHash');
+  if (draftId) await tx.objectStore('drafts').delete(draftId);
   await tx.done;
   return entry;
 }

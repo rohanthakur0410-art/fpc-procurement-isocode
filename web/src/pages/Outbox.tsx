@@ -9,12 +9,14 @@ import { trySync, isOnlineNow } from '../offline/sync';
 export default function Outbox() {
   const { t, lang } = useApp();
   const [pending, setPending] = useState<any[]>([]);
+  const [drafts, setDrafts] = useState<any[]>([]);
   const [sent, setSent] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
   const online = isOnlineNow();
 
   const refresh = useCallback(async () => {
     const d = await getDb();
+    setDrafts(await d.getAll('drafts'));
     setPending((await d.getAll('outbox')).sort((a: any, b: any) => b.seq - a.seq));
     setSent((await d.getAll('sent')).sort((a: any, b: any) => b.seq - a.seq));
   }, []);
@@ -39,7 +41,8 @@ export default function Outbox() {
         <h1 className="dh-title">{t('outbox')}</h1>
       </header>
 
-      {pending.length === 0 && sent.length === 0 && (
+      {drafts.map(d=><div className="card" key={d.id}><strong>{t('unpricedDraft')} · {d.farmerId}</strong><p>{t(d.crop)} · {fmtKg(entryNetTenths(d))} kg</p><p style={{fontSize:14,lineHeight:1.5,margin:'10px 0'}}>{t('unpricedNotice')}</p><Link className="btn" to={`/operator/entry?draft=${d.id}`}>{t('reviewDatedPrice')}</Link></div>)}
+      {drafts.length === 0 && pending.length === 0 && sent.length === 0 && (
         <div className="queue-empty">
           <span className="qe-ic"><Icon name="tray" size={30} /></span>
           <strong>{t('allSynced')}</strong>

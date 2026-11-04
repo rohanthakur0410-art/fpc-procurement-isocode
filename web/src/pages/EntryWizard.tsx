@@ -5,7 +5,7 @@ import {
   type Member, type Crop, type Grade,
 } from '@app/shared';
 import { useApp, Shell } from '../App';
-import { cachedMembers, cachedRate } from '../offline/db';
+import { cachedMembers, cachedRate, cachePrices, getDb, type CollectionDraft } from '../offline/db';
 import { saveEntry, trySync, refreshReferenceData, todayIST, isOnlineNow } from '../offline/sync';
 import { api } from '../api';
 
@@ -101,6 +101,10 @@ function PhotoReader({
 export default function EntryWizard() {
   const { t, user, lang } = useApp();
   const navigate = useNavigate();
+  const [draft, setDraft] = useState<CollectionDraft | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const draftId = new URLSearchParams(location.search).get('draft');
+  const collectionDate = draft ? new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Kolkata'}).format(new Date(draft.collectedAt)) : todayIST();
   const [done, setDone] = useState(false);
   const [step, setStep] = useState(0);
   const [members, setMembers] = useState<Member[]>([]);
@@ -126,8 +130,20 @@ export default function EntryWizard() {
   }, []);
 
   useEffect(() => {
-    if (crop) cachedRate(todayIST(), crop, grade).then(setRate);
-  }, [crop, grade, priceRevision]);
+    if (!draftId) return;
+    getDb().then(d=>d.get('drafts',draftId)).then(async (d: CollectionDraft | undefined)=>{
+      if (!d || d.centreCode !== user?.centreCode) {setSaveErr(t('draftUnavailable')); return;}
+      setDraft(d);setCrop(d.crop as Crop);setGrade(d.grade as Grade);
+      setGross(fmtKg(d.grossTenths));setTare(fmtKg(d.tareTenths));setMoisture(fmtMoisture(d.moistureTenths));
+      setMember((await cachedMembers()).find(m=>m.farmerId===d.farmerId) ?? null);setStep(1);
+      const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date(d.collectedAt));
+      if(isOnlineNow()) { try {const r=await api.prices(date);await cachePrices(date,r.prices);setPriceRevision(n=>n+1);}catch{} }
+    });
+  },[draftId]);
+
+  useEffect(() => {
+    if (crop) cachedRate(collectionDate, crop, grade).then(setRate);
+  }, [crop, grade, priceRevision, collectionDate]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -148,16 +164,21 @@ export default function EntryWizard() {
   if (scaleAi.status === 'ok' && scaleAi.valueTenths != null && grossT != null && grossT !== scaleAi.valueTenths) mismatches.push(t('grossKg'));
   if (moistAi.status === 'ok' && moistAi.valueTenths != null && moistT != null && moistT !== moistAi.valueTenths) mismatches.push(t('moisture'));
 
-  const weightsValid = grossT != null && tareT != null && moistT != null && moistT <= 400 && grossT > tareT && grossT <= 100_000_000 && rate != null;
+  const weightsValid = grossT != null && tareT != null && moistT != null && moistT <= 400 && grossT > tareT && grossT <= 100_000_000;
   const canSave = !!member && !!crop && weightsValid && mismatches.length === 0 && !busy && scaleAi.status !== 'reading' && moistAi.status !== 'reading';
 
   const doSave = async () => {
-    if (!canSave || !member || !crop || net == null || amount == null || !user?.centreCode) return;
+    if (!canSave || !member || !crop || net == null || !user?.centreCode) return;
     setBusy(true);
     setSaveErr('');
     setShowReview(false);
     try {
-      const currentRate = await cachedRate(todayIST(), crop, grade);
+      if(rate == null) {
+        const d=await getDb();
+        const record: CollectionDraft={id:draft?.id ?? crypto.randomUUID(),collectedAt:draft?.collectedAt ?? new Date().toISOString(),centreCode:user.centreCode,farmerId:member.farmerId,crop,grade,grossTenths:grossT!,tareTenths:tareT!,moistureTenths:moistT!};
+        await d.put('drafts',record);setDraftSaved(true);return;
+      }
+      const currentRate = await cachedRate(collectionDate, crop, grade);
       if (currentRate == null || currentRate !== rate) {
         setRate(currentRate); setStep(1); setSaveErr(t('dateRateChanged')); return;
       }
@@ -166,7 +187,8 @@ export default function EntryWizard() {
         centreCode: user.centreCode, farmerId: member.farmerId, crop, grade,
         grossTenths: grossT!, tareTenths: tareT!, moistureTenths: moistT!,
         rateRupees: rate!, photoName,
-      });
+        ...(draft ? {draftId:draft.id,priceReviewedAt:new Date().toISOString()} : {}),
+      }, draft?.collectedAt, draft?.id);
       const outcome = await trySync();
       let slipNo: string | undefined;
       if (outcome.stored > 0 || outcome.duplicates > 0) {
@@ -184,7 +206,7 @@ export default function EntryWizard() {
         `${t('moisture')}: ${fmtMoisture(moistT!)}`,
         `${t('netWeight')}: ${fmtKg(net)} ${lang === 'mr' ? 'कि.ग्रॅ.' : 'kg'}`,
         `${t('rateOfDay')}: ₹${rate!.toLocaleString('en-IN')} ${t('perQuintal')}`,
-        `${t('amount')}: ₹${fmtINR(amount)}`,
+        `${t('amount')}: ₹${fmtINR(amount!)}`,
       ].join('\n');
       setSaved({ synced: !!slipNo, slipNo, slipText });
       setDone(true);
@@ -201,6 +223,8 @@ export default function EntryWizard() {
     setGross(''); setTare(''); setMoisture(''); setScaleAi(emptyAi); setMoistAi(emptyAi);
     setSaved(null); setQ('');
   };
+
+  if(draftSaved) return <Shell><h1>{t('draftSaved')}</h1><p className="callout">{t('unpricedNotice')}</p><button className="big-btn" onClick={()=>navigate('/operator/outbox')}>{t('outbox')}</button></Shell>;
 
   if (done && saved) {
     return (
@@ -228,7 +252,7 @@ export default function EntryWizard() {
       <h1 style={{ marginTop: 18 }}>{t('navNew')}</h1>
 
       <p className="sub" aria-live="polite">{t('stepLabel')} {step + 1} / 3</p>
-      {step > 0 && <button className="btn small" onClick={() => setStep(step - 1)}>{t('back')}</button>}
+      {step > 0 && !draft && <button className="btn small" onClick={() => setStep(step - 1)}>{t('back')}</button>}
       {step === 0 && <>
       <div className="sect"><span className="n">1</span><h2>{t('selectFarmer')}</h2></div>
       {member ? (
@@ -263,43 +287,44 @@ export default function EntryWizard() {
       <button className="big-btn" disabled={!member} onClick={() => {setStep(1); window.scrollTo(0,0);}}>{t('next')} →</button>
       </>}
       {step === 1 && <>
+      {saveErr && <p className="callout red">{saveErr}</p>}
       <div className="sect"><span className="n">2</span><h2>{t('selectCrop')}</h2></div>
       <div className="choice-grid">
         {(['soybean', 'tur'] as Crop[]).map((c) => (
-          <button key={c} className={`choice ${crop === c ? 'sel' : ''}`} onClick={() => setCrop(c)}>{t(c)}</button>
+          <button key={c} className={`choice ${crop === c ? 'sel' : ''}`} disabled={!!draft} onClick={() => setCrop(c)}>{t(c)}</button>
         ))}
       </div>
       <div className="seg" style={{ marginTop: 8 }}>
         {(['A', 'B'] as Grade[]).map((g) => (
-          <button key={g} className={grade === g ? 'sel' : ''} onClick={() => setGrade(g)}>{t('grade')} {g}</button>
+          <button key={g} className={grade === g ? 'sel' : ''} disabled={!!draft} onClick={() => setGrade(g)}>{t('grade')} {g}</button>
         ))}
       </div>
       {crop && (
         <div className="callout green" style={{ marginTop: 10 }}>
-          {t('rateOfDay')}: <strong>{rate != null ? `₹${rate.toLocaleString('en-IN')} ${t('perQuintal')}` : '—'}</strong>
+          {draft && <p>{t('collectionDate')}: {collectionDate}</p>}{t('rateOfDay')}: <strong>{rate != null ? `₹${rate.toLocaleString('en-IN')} ${t('perQuintal')}` : t('pricePending')}</strong>
         </div>
       )}
 
-      <button className="big-btn" disabled={!crop || rate == null} onClick={() => {setStep(2); window.scrollTo(0,0);}}>{t('next')} →</button>
+      <button className="big-btn" disabled={!crop} onClick={() => {setStep(2); window.scrollTo(0,0);}}>{t('next')} →</button>
       </>}
       {step === 2 && <>
       <div className="sect"><span className="n">3</span><h2>{t('weightsTitle')}</h2></div>
       <div className="field">
         <label>{t('grossKg')}</label>
-        <input inputMode="decimal" value={gross} onChange={(e) => setGross(e.target.value)} placeholder="1250.0" />
+        <input inputMode="decimal" readOnly={!!draft} value={gross} onChange={(e) => setGross(e.target.value)} placeholder="1250.0" />
       </div>
-      <PhotoReader kind="scale" ai={scaleAi} setAi={setScaleAi} onAccept={(v) => setGross(fmtKg(v))} t={t} />
+      {!draft && <PhotoReader kind="scale" ai={scaleAi} setAi={setScaleAi} onAccept={(v) => setGross(fmtKg(v))} t={t} />}
       <div className="row">
         <div className="field">
           <label>{t('tareKg')}</label>
-          <input inputMode="decimal" value={tare} onChange={(e) => setTare(e.target.value)} placeholder="18.0" />
+          <input inputMode="decimal" readOnly={!!draft} value={tare} onChange={(e) => setTare(e.target.value)} placeholder="18.0" />
         </div>
         <div className="field">
           <label>{t('moisture')}</label>
-          <input inputMode="decimal" value={moisture} onChange={(e) => setMoisture(e.target.value)} placeholder="11.5" />
+          <input inputMode="decimal" readOnly={!!draft} value={moisture} onChange={(e) => setMoisture(e.target.value)} placeholder="11.5" />
         </div>
       </div>
-      <PhotoReader kind="moisture" ai={moistAi} setAi={setMoistAi} onAccept={(v) => setMoisture(fmtMoisture(v))} t={t} />
+      {!draft && <PhotoReader kind="moisture" ai={moistAi} setAi={setMoistAi} onAccept={(v) => setMoisture(fmtMoisture(v))} t={t} />}
       {mismatches.length > 0 && <div className="callout red">{t('aiMismatch')} ({mismatches.join(', ')})</div>}
       {saveErr && <div className="callout red">{saveErr}</div>}
 
@@ -307,7 +332,7 @@ export default function EntryWizard() {
       <div className="actionbar">
         <div className="inner">
           <div className="live">
-            <span>{t('netWeight')}: <strong>{net != null ? `${fmtKg(net)} ${lang === 'mr' ? 'कि.ग्रॅ.' : 'kg'}` : '—'}</strong></span>
+            <span>{t('netWeight')}: <strong>{net != null ? `${fmtKg(net)} ${lang === 'mr' ? 'कि.ग्रॅ.' : 'kg'}` : t('pricePending')}</strong></span>
             <span className="amt">{amount != null ? `₹${fmtINR(amount)}` : '₹ —'}</span>
           </div>
           <button className="big-btn" disabled={!canSave} onClick={() => setShowReview(true)}>{t('review')} →</button>
@@ -315,13 +340,13 @@ export default function EntryWizard() {
       </div>
 
       </>}
-      {showReview && member && crop && net != null && amount != null && rate != null && (
+      {showReview && member && crop && net != null && (
         <div className="sheet-backdrop" onClick={() => setShowReview(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="grab" />
-            <h2 style={{ marginBottom: 10 }}>{t('review')} · {t('slip')}</h2>
+            {rate == null && <p className="callout">{t('unpricedNotice')}</p>}{draft && rate != null && <p className="callout">{t('draftPricingReview')} {collectionDate}</p>}<h2 style={{ marginBottom: 10 }}>{t('review')} · {rate == null ? t('unpricedDraft') : t('slip')}</h2>
             <div className="slip">
-              <div className="head"><div className="title">{t('slip')}</div></div>
+              <div className="head"><div className="title">{rate == null ? t('unpricedDraft') : t('slip')}</div></div>
               <div className="body">
                 <div className="kv"><span className="k">{t('farmer')}</span><span className="v">{lang === 'mr' ? member.nameMr : member.name} ({member.farmerId})</span></div>
                 <div className="kv"><span className="k">{t('village')}</span><span className="v">{lang === 'mr' ? member.villageMr : member.village}</span></div>
@@ -330,9 +355,9 @@ export default function EntryWizard() {
                 <div className="kv"><span className="k">{t('tareKg')}</span><span className="v">{fmtKg(tareT!)}</span></div>
                 <div className="kv"><span className="k">{t('moisture')}</span><span className="v">{fmtMoisture(moistT!)}%</span></div>
                 <div className="kv"><span className="k">{t('netWeight')}</span><span className="v num-lg">{fmtKg(net)}</span></div>
-                <div className="kv"><span className="k">{t('rateOfDay')}</span><span className="v">₹{rate.toLocaleString('en-IN')} {t('perQuintal')}</span></div>
+                <div className="kv"><span className="k">{t('collectionPrice')}</span><span className="v">{rate != null ? `₹${rate.toLocaleString('en-IN')} ${t('perQuintal')}` : t('pricePending')}</span></div>
               </div>
-              <div className="amount"><div className="num-xl">₹{fmtINR(amount)}</div></div>
+              <div className="amount"><div className={amount != null ? "num-xl" : "num-lg"}>{amount != null ? `₹${fmtINR(amount)}` : t('pricePending')}</div></div>
             </div>
             {mismatches.length > 0 && <div className="callout red">{t('aiMismatch')} ({mismatches.join(', ')})</div>}
             {saveErr && <div className="callout red">{saveErr}</div>}

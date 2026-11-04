@@ -50,7 +50,7 @@ per route), never only hidden in the UI.
 ### 4.1 Write path
 
 1. Operator completes an entry. The app **always writes to the on-phone
-   outbox first** (IndexedDB), whether or not there is network. Saving does not require connectivity once today's central price and registry are cached. A missing dated price currently blocks a new entry; see §9.
+   outbox first** (IndexedDB), whether or not there is network. Saving does not require connectivity once today's central price and registry are cached. Without a dated price, measurements can be saved as a separate local unpriced draft, not a payable slip; see §9.
 2. Each entry gets a client-generated UUID, a per-device sequence number, and
    a hash chained to the previous entry from the same device
    (`hash = SHA-256(prevHash | uuid | seq | deviceTs | canonical(payload))`;
@@ -154,13 +154,13 @@ Two kinds, clearly separated:
    threshold (1.5× a simple yield-per-acre estimate) are placeholder rules the
    office could tune; the mechanism is what matters.
 4. **Slip numbering** continues per centre from the sample data's last numbers.
-5. **Price uncertainty:** comparing against the current central rate for the device-stated collection date is a conservative prototype assumption, not an employer-supplied policy. A missing or changed rate preserves the submitted rate and computed amount but flags the entry for office review. There is no price-version history. Simple office approval is blocked for price-held records (409); it cannot bypass rate correction. The correction/reversal workflow remains unfinished, so these records stay held. The save action rechecks the current IST date and cached rate, keeping form values if the date/rate changed. The app does not silently reuse yesterday's price after midnight: without today's cached price, it blocks new collection entry rather than inventing a payable rate. Capturing an unpriced collection draft would require a separate business decision and UI.
+5. **Price uncertainty:** comparing against the current central rate for the device-stated collection date is a conservative prototype assumption, not an employer-supplied policy. A missing or changed rate preserves the submitted rate and computed amount but flags the entry for office review. There is no price-version history. Simple office approval is blocked for price-held records (409); it cannot bypass rate correction. The correction/reversal workflow remains unfinished, so these records stay held. The save action rechecks the current IST date and cached rate, keeping form values if the date/rate changed. The app never silently reuses yesterday's price. Without a dated price, the operator can save a local unpriced draft with original collection time, farmer, crop/grade and measurements. It explicitly shows no payable amount, final slip or SMS. After connectivity returns, reopening it fetches the central price for its original IST collection date. Measurements stay read-only; explicit review confirms that rate and amount. Conversion writes the ordinary hashed outbox entry and consumes the draft in one IndexedDB transaction, preserving collection time plus draft ID and price-review timestamp. The server persists those audit fields, checks the dated rate and blocks repeated conversion IDs. Missing/mismatched central prices still hold a synced purchase. This draft workflow is a labelled prototype assumption, not a client-approved business policy. Drafts are local-only and unsigned before conversion; clearing browser storage can lose them, original photos are not retained, and there is no server backup or trusted timestamp for them. An already-synced price-held record still needs the unfinished correction/reversal workflow.
 6. One operator session per centre device is assumed; multi-operator devices
    would key the hash chain per operator login instead.
 
 ## 10. Testing
 
-47 automated tests (`npx vitest run`):
+52 automated tests (`npx vitest run`):
 
 - **Calculation:** every brief sample row exact to the paisa; fractional
   moisture; rounding behaviour.
@@ -263,3 +263,16 @@ Registry cached reload succeeded with actual browser network disconnection.
 A simulated503 on session lookup retained the cached operator rather than treating
 an unavailable server as expired credentials. These are controlled local checks,
 not evidence of production durability, real bank processing or live vision accuracy.
+
+
+### Unpriced collection draft check (private, 4 November)
+
+With cached prices removed and actual browser networking disabled, a collection
+850.0/20.0/13.5 was saved with817.6kg net and no price/amount. The draft survived
+a full offline reload. After reconnecting, the collection-date central price was
+shown for explicit review, original measurements stayed read-only, and conversion
+synced once with Rs39,653.60. Draft removal and outbox write are atomic.52 tests
+include conversion-audit persistence and rejection of missing review metadata;
+mocked vision remains8 of those tests. Same-timestamp repeat-farmer and parallel
+identical-sync regressions also pass. This does not establish real vision accuracy,
+trusted time, or durable backup of a device that is lost.

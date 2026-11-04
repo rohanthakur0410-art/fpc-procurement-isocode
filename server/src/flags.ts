@@ -19,7 +19,7 @@ export function computeFlags(
 
   const since = new Date(new Date(p.deviceTs).getTime() - 3600_000).toISOString();
   const dup = db
-    .prepare('SELECT COUNT(*) AS c FROM purchases WHERE member_id = ? AND device_ts >= ? AND device_ts < ?')
+    .prepare('SELECT COUNT(*) AS c FROM purchases WHERE member_id = ? AND device_ts >= ? AND device_ts <= ?')
     .get(p.memberId, since, p.deviceTs) as { c: number };
   if (dup.c > 0) flags.push('same_farmer_within_hour');
 

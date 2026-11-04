@@ -32,10 +32,13 @@ const syncEntrySchema = z
       tareTenths: z.number().int().nonnegative().max(100_000_000),
       moistureTenths: z.number().int().min(0).max(400),
       rateRupees: z.number().int().positive().max(1_000_000),
+      draftId: z.string().uuid().optional(),
+      priceReviewedAt: isoDateString.optional(),
       photoName: z.string().max(200).nullable().optional(),
     }),
   })
-  .refine((e) => e.payload.grossTenths > e.payload.tareTenths, 'gross must exceed tare');
+  .refine((e) => e.payload.grossTenths > e.payload.tareTenths, 'gross must exceed tare')
+  .refine((e) => !e.payload.draftId || !!e.payload.priceReviewedAt, 'draft conversion requires dated price review');
 
 const syncBodySchema = z.object({
   deviceId: z.string().min(1).max(80),
@@ -179,6 +182,9 @@ export function createApp(db: DB) {
           results.push({ uuid: e.uuid, result: 'duplicate', slipNo: existing.slip_no, status: existing.status as any, flags: JSON.parse(existing.flags) });
           continue;
         }
+        if (e.payload.draftId && db.prepare('SELECT 1 FROM purchases WHERE draft_id = ?').get(e.payload.draftId)) {
+          results.push({uuid:e.uuid,result:'rejected',error:'draft_already_converted'}); continue;
+        }
         const member = db.prepare('SELECT id, name_mr FROM members WHERE farmer_id = ?').get(e.payload.farmerId) as
           | { id: number; name_mr: string }
           | undefined;
@@ -211,13 +217,13 @@ export function createApp(db: DB) {
           .prepare(
             `INSERT INTO purchases (client_uuid, device_id, seq, prev_hash, entry_hash, centre_code, member_id,
                crop, grade, gross_tenths, tare_tenths, moisture_tenths, net_tenths, rate_rupees, amount_paisa,
-               status, flags, photo_name, device_ts, synced_at, slip_no)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+               status, flags, photo_name, device_ts, synced_at, slip_no, draft_id, price_reviewed_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
           )
           .run(
             e.uuid, deviceId, e.seq, e.prevHash, e.hash, p.centreCode, member.id,
             p.crop, p.grade, p.grossTenths, p.tareTenths, p.moistureTenths, net, p.rateRupees, amount,
-            status, JSON.stringify(flags), p.photoName ?? null, e.deviceTs, now, slipNo
+            status, JSON.stringify(flags), p.photoName ?? null, e.deviceTs, now, slipNo, p.draftId ?? null, p.priceReviewedAt ?? null
           );
         // Mock SMS gateway: the slip is queued and "sent" immediately when there is
         // network (a real gateway plugs into this exact queue later).

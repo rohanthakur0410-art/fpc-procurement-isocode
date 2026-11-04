@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS purchases (
   photo_name TEXT,
   device_ts TEXT NOT NULL,
   synced_at TEXT NOT NULL,
+  draft_id TEXT,
+  price_reviewed_at TEXT,
   slip_no TEXT UNIQUE
 );
 CREATE INDEX IF NOT EXISTS idx_purchases_centre ON purchases(centre_code, device_ts);
@@ -108,4 +110,7 @@ CREATE TABLE IF NOT EXISTS sms_outbox (
   sent_at TEXT
 );
 `);
+  const columns = db.prepare('PRAGMA table_info(purchases)').all() as {name:string}[];
+  if(!columns.some(c=>c.name==='draft_id')) db.exec('ALTER TABLE purchases ADD COLUMN draft_id TEXT');
+  if(!columns.some(c=>c.name==='price_reviewed_at')) db.exec('ALTER TABLE purchases ADD COLUMN price_reviewed_at TEXT');
 }

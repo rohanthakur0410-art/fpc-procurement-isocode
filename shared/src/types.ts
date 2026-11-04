@@ -39,6 +39,8 @@ export interface PurchasePayload {
   moistureTenths: number; // percent * 10
   rateRupees: number;
   photoName?: string | null;
+  draftId?: string;
+  priceReviewedAt?: string;
 }
 
 export interface SyncEntry {
