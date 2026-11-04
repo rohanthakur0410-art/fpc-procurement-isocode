@@ -28,4 +28,13 @@ Demo logins: `operator` / `demo1234` (centre C07), `office` / `demo1234`.
 
 ## Test
 
-    npm test           # 25 tests: brief sample figures, hash chain, sync, flags, payment run
+    npm test           # 29 tests: brief sample figures, hash chain, sync, flags, payment run
+
+## A note on the commit history
+
+The original working copy of this project was lost during development, so this
+repository's history was reconstructed from a recorded log of the development
+session. Commit content, order, and messages match the original work (3 Nov
+2026); commit timestamps are rebuilt from that log and are approximate to
+within a few minutes. Documentation commits after the reconstruction carry
+their own dates.
