@@ -569,3 +569,21 @@ table.simple th { border-bottom: 1.5px solid var(--line); }
 
 /* entry section headers: ruled step marks */
 .sect { border-bottom: 1.5px solid var(--line); padding-bottom: 7px; margin: 24px 0 12px; }
+
+/* Demo entry: role-first access, original ledger cover retained. */
+.demo-access { padding: 18px; }
+.demo-access h2 { margin: 0 0 8px; font-size: 19px; }
+.demo-role { display: flex; flex-direction: column; gap: 5px; width: 100%; min-height: 72px; margin-top: 10px; padding: 14px; text-align: left; background: var(--card); color: var(--navy); border: 1.5px solid var(--navy); border-radius: 8px; cursor: pointer; }
+.demo-role strong { font-size: 16px; }
+.demo-role span { font-size: 13px; color: var(--muted); line-height: 1.45; }
+.demo-role:first-of-type { border-left: 4px solid var(--saffron); }
+.demo-role:disabled { opacity: .55; cursor: wait; }
+.manual-access { border-top: 1px solid var(--line); }
+.manual-access summary { padding: 16px 18px; font-size: 14px; cursor: pointer; color: var(--muted); }
+
+.demo-guide { margin-top: 14px; border: 1px solid var(--line); border-left: 4px solid var(--saffron); border-radius: 8px; background: var(--card); }
+.demo-guide summary { padding: 14px; font-weight: 700; cursor: pointer; }
+.demo-guide-body { padding: 0 14px 14px; font-size: 14px; line-height: 1.55; }
+.demo-guide-body p { margin: 0 0 10px; }
+.demo-guide-body ol { margin: 0 0 12px; padding-left: 22px; }
+.demo-guide-body li { margin-bottom: 8px; }

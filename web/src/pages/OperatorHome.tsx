@@ -49,6 +49,18 @@ export default function OperatorHome() {
 
   return (
     <Shell>
+      <details className="demo-guide" open={todaySlips.length === 0 ? true : undefined}>
+        <summary>{t('demoGuideTitle')}</summary>
+        <div className="demo-guide-body">
+          <p>{t('demoGuideIntro')}</p>
+          <ol>
+            <li>{t('demoGuideFarmer')}</li>
+            <li>{t('demoGuideWeights')}</li>
+            <li>{t('demoGuideResult')}</li>
+          </ol>
+          <p className="sub2">{t('demoGuideLimits')}</p>
+        </div>
+      </details>
       <header className="dayhead">
         <div className="dh-top">
           <span className="dh-date">{dateStr}</span>
