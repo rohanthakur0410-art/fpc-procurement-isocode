@@ -273,10 +273,11 @@ export function createApp(db: DB) {
       .prepare(
         `SELECT p.id, p.slip_no AS slipNo, p.centre_code AS centreCode, p.crop, p.grade,
                 p.gross_tenths AS grossTenths, p.tare_tenths AS tareTenths, p.moisture_tenths AS moistureTenths,
-                p.net_tenths AS netTenths, p.rate_rupees AS rateRupees, p.amount_paisa AS amountPaisa,
+                p.net_tenths AS netTenths, COALESCE(pr.resolved_rate,p.rate_rupees) AS rateRupees, COALESCE(pr.resolved_amount,p.amount_paisa) AS amountPaisa,
+                p.rate_rupees AS originalRateRupees, p.amount_paisa AS originalAmountPaisa, pr.resolved_at AS priceResolvedAt, pr.resolved_by AS priceResolvedBy, pr.reason AS priceResolutionReason,
                 p.status, p.flags, p.device_ts AS deviceTs, p.synced_at AS syncedAt,
                 m.farmer_id AS farmerId, m.name AS farmerName, m.name_mr AS farmerNameMr, m.village, m.village_mr AS villageMr
-         FROM purchases p JOIN members m ON m.id = p.member_id
+         FROM purchases p JOIN members m ON m.id = p.member_id LEFT JOIN price_resolutions pr ON pr.purchase_id=p.id
          ${where} ORDER BY p.device_ts DESC LIMIT 500`
       )
       .all(...params)
@@ -292,8 +293,8 @@ export function createApp(db: DB) {
     }
     const held = db.prepare('SELECT flags FROM purchases WHERE id = ?').get(req.params.id) as { flags: string } | undefined;
     const heldFlags: string[] = JSON.parse(held?.flags || '[]');
-    if (heldFlags.some((f) => f === 'price_unverified' || f === 'price_mismatch')) {
-      res.status(409).json({ error: 'price_correction_required', message: 'Rate correction/reversal is not implemented. This price-held purchase cannot be approved.' });
+    if (heldFlags.some((f) => f === 'price_unverified' || f === 'price_mismatch') && !db.prepare('SELECT 1 FROM price_resolutions WHERE purchase_id=?').get(req.params.id)) {
+      res.status(409).json({ error: 'price_correction_required', message: 'Explicit dated-price resolution is required before approval.' });
       return;
     }
     const info = db.prepare(`UPDATE purchases SET status = 'approved' WHERE id = ? AND status = 'flagged'`).run(req.params.id);
@@ -304,12 +305,43 @@ export function createApp(db: DB) {
     res.json({ ok: true });
   });
 
+  // An append-only correction never rewrites the original device payload/hash.
+  app.get('/api/purchases/:id/price-resolution', requireAuth, requireRole('office'), (req,res)=>{
+    const p=db.prepare('SELECT * FROM purchases WHERE id=?').get(req.params.id) as any;
+    if(!p){res.status(404).json({error:'not_found'});return;}
+    const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date(p.device_ts));
+    const official=db.prepare('SELECT rate_rupees FROM prices WHERE price_date=? AND crop=? AND grade=?').get(date,p.crop,p.grade) as any;
+    const resolution=db.prepare('SELECT * FROM price_resolutions WHERE purchase_id=?').get(p.id);
+    res.json({collectionDate:date,originalRate:p.rate_rupees,originalAmount:p.amount_paisa,proposedRate:official?.rate_rupees ?? null,proposedAmount:official?amountPaisa(p.net_tenths,official.rate_rupees):null,resolution:resolution??null});
+  });
+  app.post('/api/purchases/:id/price-resolution',requireAuth,requireRole('office'),(req:AuthedRequest,res)=>{
+    const parsed=z.object({expectedRate:z.number().int().positive(),reason:z.string().trim().min(5).max(500)}).safeParse(req.body);
+    if(!parsed.success){res.status(400).json({error:'invalid_body'});return;}
+    const outcome=db.transaction(()=>{
+      const p=db.prepare('SELECT p.*,m.name_mr FROM purchases p JOIN members m ON m.id=p.member_id WHERE p.id=?').get(req.params.id) as any;
+      if(!p || p.status!=='flagged' || !JSON.parse(p.flags).some((f:string)=>f==='price_mismatch'||f==='price_unverified'))return 'not_price_held';
+      if(db.prepare('SELECT 1 FROM payment_items WHERE purchase_id=?').get(p.id)||db.prepare('SELECT 1 FROM price_resolutions WHERE purchase_id=?').get(p.id))return 'already_resolved_or_reserved';
+      const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata'}).format(new Date(p.device_ts));
+      const official=db.prepare('SELECT rate_rupees FROM prices WHERE price_date=? AND crop=? AND grade=?').get(date,p.crop,p.grade) as any;
+      if(!official)return 'missing_dated_price';
+      if(official.rate_rupees!==parsed.data.expectedRate)return 'price_changed_review_again';
+      const amount=amountPaisa(p.net_tenths,official.rate_rupees);const now=new Date().toISOString();
+      db.prepare('INSERT INTO price_resolutions VALUES (?,?,?,?,?,?,?,?)').run(p.id,p.rate_rupees,p.amount_paisa,official.rate_rupees,amount,req.user!.username,now,parsed.data.reason);
+      const [y,m,d]=date.split('-');
+      const text='दर दुरुस्ती - मूळ नोंद कायम\n'+smsBody(p.slip_no,p.name_mr,{crop:p.crop,grade:p.grade,grossTenths:p.gross_tenths,tareTenths:p.tare_tenths,moistureTenths:p.moisture_tenths,netTenths:p.net_tenths,rateRupees:official.rate_rupees,amountPaisa:amount},p.centre_code,`${d}/${m}/${y}`);
+      db.prepare('INSERT INTO sms_outbox(purchase_id,member_id,body,status,queued_at,sent_at) VALUES (?,?,?,?,?,?)').run(p.id,p.member_id,text,'sent',now,now);
+      return null;
+    })();
+    if(outcome){res.status(409).json({error:outcome});return;}
+    res.json({ok:true,stillHeldForReview:true});
+  });
+
   // ---------- office dashboard ----------
   app.get('/api/dashboard', requireAuth, requireRole('office'), (_, res) => {
     const today = todayIST();
     const todayRows = db
       .prepare(
-        `SELECT centre_code AS centre, COUNT(*) AS slips, COALESCE(SUM(net_tenths),0) AS netTenths, COALESCE(SUM(amount_paisa),0) AS amountPaisa
+        `SELECT centre_code AS centre, COUNT(*) AS slips, COALESCE(SUM(net_tenths),0) AS netTenths, COALESCE(SUM(COALESCE((SELECT resolved_amount FROM price_resolutions pr WHERE pr.purchase_id=purchases.id),amount_paisa)),0) AS amountPaisa
          FROM purchases WHERE date(device_ts, '+5 hours', '+30 minutes') = ? GROUP BY centre_code ORDER BY centre_code`
       )
       .all(today);
@@ -320,7 +352,7 @@ export function createApp(db: DB) {
       )
       .all(today);
     const pending = db
-      .prepare(`SELECT COUNT(*) AS c, COALESCE(SUM(amount_paisa),0) AS total FROM purchases WHERE status = 'approved'`)
+      .prepare(`SELECT COUNT(*) AS c, COALESCE(SUM(COALESCE((SELECT resolved_amount FROM price_resolutions pr WHERE pr.purchase_id=purchases.id),amount_paisa)),0) AS total FROM purchases WHERE status = 'approved'`)
       .get() as { c: number; total: number };
     const flagged = db.prepare(`SELECT COUNT(*) AS c FROM purchases WHERE status = 'flagged'`).get() as { c: number };
     const stock = db
@@ -341,7 +373,7 @@ export function createApp(db: DB) {
     const now = new Date().toISOString();
     const placeholders = body.data.purchaseIds.map(() => '?').join(',');
     const rows = db
-      .prepare(`SELECT id, member_id, amount_paisa FROM purchases WHERE id IN (${placeholders}) AND status = 'approved' AND EXISTS (SELECT 1 FROM members m WHERE m.id = purchases.member_id AND m.verified = 1) AND NOT EXISTS (SELECT 1 FROM payment_items i WHERE i.purchase_id = purchases.id)`)
+      .prepare(`SELECT id, member_id, COALESCE((SELECT resolved_amount FROM price_resolutions pr WHERE pr.purchase_id=purchases.id),amount_paisa) AS amount_paisa FROM purchases WHERE id IN (${placeholders}) AND status = 'approved' AND EXISTS (SELECT 1 FROM members m WHERE m.id = purchases.member_id AND m.verified = 1) AND NOT EXISTS (SELECT 1 FROM payment_items i WHERE i.purchase_id = purchases.id)`)
       .all(...body.data.purchaseIds) as { id: number; member_id: number; amount_paisa: number }[];
     if (rows.length === 0) {
       res.status(400).json({ error: 'no_approved_purchases' });

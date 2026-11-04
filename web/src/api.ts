@@ -29,6 +29,8 @@ export const api = {
   sync: (body: any) => req<{ results: any[]; chainOk: boolean }>('/api/sync', { method: 'POST', body: JSON.stringify(body) }),
   purchases: (q = '') => req<{ purchases: any[] }>(`/api/purchases${q}`),
   review: (id: number) => req(`/api/purchases/${id}/review`, { method: 'POST', body: JSON.stringify({ action: 'approve' }) }),
+  priceResolution: (id:number) => req<any>(`/api/purchases/${id}/price-resolution`),
+  resolvePrice: (id:number, expectedRate:number, reason:string) => req(`/api/purchases/${id}/price-resolution`,{method:'POST',body:JSON.stringify({expectedRate,reason})}),
   dashboard: () => req<any>('/api/dashboard'),
   createRun: (purchaseIds: number[]) =>
     req<{ runId: number; itemCount: number; totalPaisa: number }>('/api/payment-runs', { method: 'POST', body: JSON.stringify({ purchaseIds }) }),

@@ -284,3 +284,30 @@ describe('unpriced draft conversion audit',()=>{
     expect(r.status).toBe(400);
   });
 });
+
+describe('audited held-price correction',()=>{
+  let id:number; let originalHash:string;
+  it('previews dated central price and rejects operator correction',async()=>{
+    const e=await makeEntry('a1111111-1111-4111-8111-111111111111',1,GENESIS,{farmerId:'F0006',rateRupees:9999,moistureTenths:116});originalHash=e.hash;
+    await call('/api/sync',{method:'POST',cookie:operatorCookie,body:{deviceId:'correction-test',entries:[e]}});
+    id=(db.prepare('SELECT id FROM purchases WHERE client_uuid=?').get(e.uuid) as any).id;
+    const preview=await call(`/api/purchases/${id}/price-resolution`,{cookie:officeCookie});
+    expect(preview.body.originalRate).toBe(9999);expect(preview.body.proposedRate).toBe(4850);
+    expect((await call(`/api/purchases/${id}/price-resolution`,{method:'POST',cookie:operatorCookie,body:{expectedRate:4850,reason:'Central price checked'}})).status).toBe(403);
+  });
+  it('rejects stale expected rate and missing review reason',async()=>{
+    expect((await call(`/api/purchases/${id}/price-resolution`,{method:'POST',cookie:officeCookie,body:{expectedRate:4800,reason:'Central price checked'}})).status).toBe(409);
+    expect((await call(`/api/purchases/${id}/price-resolution`,{method:'POST',cookie:officeCookie,body:{expectedRate:4850,reason:''}})).status).toBe(400);
+  });
+  it('preserves immutable original, adds correction SMS, still holds payment until separate approval',async()=>{
+    const r=await call(`/api/purchases/${id}/price-resolution`,{method:'POST',cookie:officeCookie,body:{expectedRate:4850,reason:'Dated central board checked'}});expect(r.status).toBe(200);
+    const original=db.prepare('SELECT rate_rupees,entry_hash,status FROM purchases WHERE id=?').get(id) as any;
+    expect(original.rate_rupees).toBe(9999);expect(original.entry_hash).toBe(originalHash);expect(original.status).toBe('flagged');
+    expect((await call('/api/payment-runs',{method:'POST',cookie:officeCookie,body:{purchaseIds:[id]}})).status).toBe(400);
+    const sms=db.prepare('SELECT body FROM sms_outbox WHERE purchase_id=? ORDER BY id DESC').get(id) as any;expect(sms.body).toContain('दर दुरुस्ती');
+    expect((await call(`/api/purchases/${id}/review`,{method:'POST',cookie:officeCookie,body:{action:'approve'}})).status).toBe(200);
+    const run=await call('/api/payment-runs',{method:'POST',cookie:officeCookie,body:{purchaseIds:[id]}});expect(run.status).toBe(200);expect(run.body.totalPaisa).toBe(2376500);
+    const csv=await (await fetch(`${base}/api/payment-runs/${run.body.runId}/file`,{headers:{cookie:officeCookie}})).text();expect(csv).toContain('23765.00');
+    expect((await call(`/api/purchases/${id}/price-resolution`,{method:'POST',cookie:officeCookie,body:{expectedRate:4850,reason:'Repeat attempt'}})).status).toBe(409);
+  });
+});

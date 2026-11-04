@@ -100,6 +100,16 @@ CREATE TABLE IF NOT EXISTS payment_items (
   member_id INTEGER NOT NULL REFERENCES members(id),
   amount_paisa INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS price_resolutions (
+  purchase_id INTEGER PRIMARY KEY REFERENCES purchases(id),
+  original_rate INTEGER NOT NULL,
+  original_amount INTEGER NOT NULL,
+  resolved_rate INTEGER NOT NULL,
+  resolved_amount INTEGER NOT NULL,
+  resolved_by TEXT NOT NULL,
+  resolved_at TEXT NOT NULL,
+  reason TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS sms_outbox (
   id INTEGER PRIMARY KEY,
   purchase_id INTEGER NOT NULL REFERENCES purchases(id),

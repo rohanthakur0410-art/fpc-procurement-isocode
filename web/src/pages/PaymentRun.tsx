@@ -12,6 +12,8 @@ export default function PaymentRun() {
   const [runs, setRuns] = useState<any[]>([]);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  const [priceReview,setPriceReview]=useState<any>(null);
+  const [reason,setReason]=useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -59,6 +61,16 @@ export default function PaymentRun() {
       {msg && <div className="callout green">{msg}</div>}
       {err && <div className="callout red">{err}</div>}
 
+      {priceReview && <div className="card">
+        <h2>{t('resolvePrice')} · {priceReview.slip}</h2>
+        <p>{t('collectionDate')}: {priceReview.collectionDate}</p>
+        <p>{t('originalRecord')}: ₹{priceReview.originalRate} / q · ₹{fmtINR(priceReview.originalAmount)}</p>
+        <p>{t('proposedCorrection')}: {priceReview.proposedRate == null ? t('pricePending') : `₹${priceReview.proposedRate} / q · ₹${fmtINR(priceReview.proposedAmount)}`}</p>
+        <p className="sub">{t('correctionNote')}</p>
+        <div className="field"><label>{t('reasonLabel')}</label><input value={reason} onChange={e=>setReason(e.target.value)} /></div>
+        <button className="btn primary" disabled={priceReview.proposedRate==null || reason.trim().length<5} onClick={async()=>{try{await api.resolvePrice(priceReview.id,priceReview.proposedRate,reason);setPriceReview(null);await load();}catch{setErr(t('error'));}}}>{t('confirmCorrection')}</button>
+        <button className="btn" onClick={()=>setPriceReview(null)}>{t('back')}</button>
+      </div>}
       <div className="card">
         <div className="kv" style={{ borderBottom: 'none' }}>
           <span className="k">{t('approved')}: {approved.length} · ₹{fmtINR(approved.reduce((s, p) => s + p.amountPaisa, 0))}</span>
@@ -70,14 +82,15 @@ export default function PaymentRun() {
         <div className="card">
           <h3 style={{ marginBottom: 8 }}>{t('flaggedCount')} ({flagged.length})</h3>
           {flagged.map((p) => (
-            <div key={p.id} className="list-item" style={{ cursor: 'default' }}>
+            <div key={p.id} className="list-item payment-run" style={{ cursor: 'default' }}>
               <span>
                 <span className="main">{lang === 'mr' ? p.farmerNameMr : p.farmerName} · {p.slipNo}</span>
                 <span className="sub2" style={{ display: 'block' }}>
                   {(p.flags as string[]).map((f) => t(`flag_${f}`)).join(' · ')} · ₹{fmtINR(p.amountPaisa)}
                 </span>
+                {p.priceResolvedAt && <span className="sub2" style={{display:'block'}}>{t('priceResolutionAudit')}: ₹{p.originalRateRupees} → ₹{p.rateRupees} · {p.priceResolvedBy} · {fmtDate(p.priceResolvedAt,lang)} · {p.priceResolutionReason}</span>}
               </span>
-              {p.flags.some((f: string) => f === 'price_unverified' || f === 'price_mismatch') ? <span className="badge amber">{t('priceHeld')}</span> : <button className="btn small" onClick={() => approve(p.id)}>{t('approve')}</button>}
+              {p.flags.some((f: string) => f === 'price_unverified' || f === 'price_mismatch') && !p.priceResolvedAt ? <button className="btn small" onClick={async()=>{setPriceReview({...await api.priceResolution(p.id),id:p.id,slip:p.slipNo});setReason('');}}>{t('reviewDatedPrice')}</button> : <button className="btn small" onClick={() => approve(p.id)}>{t('approve')}</button>}
             </div>
           ))}
         </div>
