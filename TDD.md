@@ -183,7 +183,12 @@ identical amounts), and mobile-width screenshots of every screen.
 | --- | --- |
 | Offline storage, sync, hash chain, idempotency | SMS gateway (internal log instead) |
 | Money math, price board, flags, payment CSV | Bank file upload (CSV download instead) |
-| Auth, roles, per-centre data | AI photo reading needs a free API key to demo |
+| Auth, roles, per-centre data | |
+
+Implemented but unverified (neither tested-real nor mocked): AI photo reading.
+The endpoint and fallback are coded, but the vision path has not been exercised
+against the live model. Configuring a free API key alone does not establish
+operation; it stays labelled unverified until a live run confirms it.
 
 ## 12. UI and design decisions
 
