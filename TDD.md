@@ -1,9 +1,11 @@
-# Technical Design Document — Shetkari Saral (शेतकरी सरल)
+# Technical Design Document: Shetkari Saral (शेतकरी सरल)
 
-**Role:** SWE Intern, Isocode Labs — Brief 1: Farmer producer company's offline
-procurement and payment app
+**Role:** SWE Intern, Isocode Labs - Brief 1: Farmer producer company's offline procurement and payment app
+
 **Author:** Rohan Thakur
+
 **Date:** November 2026
+
 **Repository:** GitHub URL to be added here before submission
 
 ---
@@ -17,8 +19,8 @@ prices, reviews flagged purchases, and pays farmers in a weekly run.
 
 Design priorities, in order:
 
-1. **Never lose a purchase entry**, even with zero network.
-2. **Money math that is exact** — to the paisa, identical on phone and server.
+1. **No lost purchase entries** - the top priority this design optimises for, even with zero network.
+2. **Money math that is exact** - to the paisa, identical on phone and server.
 3. **A farmer-facing receipt (SMS)** for every accepted purchase.
 4. **Office control**: daily price board, flags for unusual entries, weekly
    payment run that never pays a flagged purchase automatically.
@@ -38,7 +40,7 @@ per route), never only hidden in the UI.
 | Choice | Why |
 | --- | --- |
 | **Node + Express + better-sqlite3** | One process, zero external services to run; SQLite is transactional and good enough for an FPC's volume; easy for a reviewer to run. |
-| **React + Vite PWA (service worker)** | Phone-first web app; the app shell and reference data work offline with no install step — important for low-end Android phones at centres. |
+| **React + Vite PWA (service worker)** | Phone-first web app; the app shell and reference data work offline with no install step - important for low-end Android phones at centres. |
 | **IndexedDB outbox on the phone** | Durable local queue that survives app restarts, unlike in-memory state. |
 | **Shared calculation package (`shared/`)** | Phone and server run the *same* money/weight code, so the slip shown offline always matches what the server stores. |
 | **Integer tenths / integer paisa** | No floating point anywhere near money or weight. All weight is stored as tenths of a kg, all money as paisa. |
@@ -68,7 +70,7 @@ tampering visible:
 - **Editing history on the phone**: changing an old entry breaks every later
   hash. The server re-computes the chain for the batch; a broken chain is
   stored but **flagged** (`chain_broken`) and held from payment for office
-  review — never silently accepted, and the farmer still gets a slip because
+  review - never silently accepted, and the farmer still gets a slip because
   the purchase physically happened.
 - **Replay**: client UUIDs are unique in the database, so a re-sent entry is a
   detected duplicate, not a second payment.
@@ -89,7 +91,7 @@ Single source of truth in `shared/src/calc.ts`, unit-tested against the
 brief's sample rows:
 
 - `net kg = (gross − tare)` reduced by **1% per moisture point above 12%**
-  (fractional points pro-rata — an assumption, see §9), with the
+  (fractional points pro-rata - an assumption, see §9), with the
   deduction applied in integer tenths.
 - `amount = net kg × daily rate (₹/quintal)`, in integer paisa.
 - Verified against the brief's sample data, exact to the paisa:
@@ -108,13 +110,17 @@ Two kinds, clearly separated:
    farmer delivering twice within an hour, chain-broken batches. Flagged
    purchases are held from the payment run until the office approves them.
    Flags never cancel a purchase.
-2. **AI photo reading (optional, with a free Gemini key):** the operator can
-   photograph the weighing scale and the moisture meter; the app reads the
-   displayed values with a vision model and pre-fills the form. A typed value
-   that disagrees with the photo reading **blocks saving** until corrected —
-   the brief's "when it is wrong, someone can fix it" requirement. Without a
-   key, the app falls back to manual entry; the manual path is the primary
-   one and is fully tested.
+2. **AI photo reading (implemented, not yet verified with a live key):** the
+   operator can photograph the weighing scale and the moisture meter; a server
+   endpoint sends the photo to a vision model (a free Gemini key via
+   `GEMINI_API_KEY`) and pre-fills the form, and the entry screen is built to
+   hold saving until a typed value that disagrees with the photo reading is
+   corrected - the brief's "when it is wrong, someone can fix it" requirement.
+   Status: the endpoint and fallback are coded, but the vision path has not
+   been run against the live model at submission time, so it is presented as
+   unverified rather than tested. The tested, primary path is manual entry:
+   when no key is configured or the model is unavailable or unsure, the app
+   says so and the operator types the values.
 
 ## 7. Payments and SMS (mocked, as the brief instructs)
 
@@ -126,14 +132,14 @@ Two kinds, clearly separated:
   amount, per-slip payment reference). Marking a run paid sets each purchase
   to `paid`. Flagged purchases are excluded until approved. Bank account and
   IFSC in the seed data are synthetic; the CSV layout is a generic NEFT-style
-  file (assumption — the brief names no bank).
+  file (assumption - the brief names no bank).
 
 ## 8. Security
 
 - Passwords hashed with bcrypt; session is an httpOnly JWT cookie.
 - Every route checks role; operators can only see/create for their own centre.
 - API input validated with zod; money fields re-computed server-side from
-  gross/tare/moisture — client-sent amounts are never trusted.
+  gross/tare/moisture - client-sent amounts are never trusted.
 - Hash chain verified on every sync batch.
 - Secrets (session secret, optional Gemini key) come from environment
   variables only; none are committed.
@@ -189,9 +195,10 @@ replaces.
   borders, tabular mono numerals for weights and money. A slip looks like a
   punched receipt with a dashed stamp box for the official slip number, so
   the screen itself reads as proof of the purchase.
-- **Marathi first, English toggle:** centre staff read Marathi fastest; the
-  office can switch to English. All money and weight formatting is identical
-  in both.
+- **Marathi first, English toggle:** the brief calls for a Marathi interface,
+  and we assume centre staff are most comfortable reading Marathi (an
+  assumption from the brief's context, not user research). The office can
+  switch to English. All money and weight formatting is identical in both.
 - **Operator home = today's register:** a running day-book of this centre's
   slips with live totals, plus one large ticket-style "new entry" action.
   Empty states say exactly what to do first.
@@ -220,8 +227,12 @@ Cut deliberately (scope discipline per the brief):
   phone app light, with manual entry as the primary path.
 - Multi-operator keying of the hash chain on a shared device (single
   operator session assumed, see §9).
-- Live deployment; the app runs as one Node process and deploys to a free
-  Render service unchanged.
+- Live deployment is optional. The app runs as one Node process and deploys
+  to a free Render service unchanged, with one honest limit: on the free tier
+  the service sleeps after about 15 idle minutes (roughly a one-minute
+  wake-up on the next visit) and its local database is reset to the seeded
+  sample data on every sleep or redeploy, so entries made in a hosted demo
+  are temporary.
 
 Next, with more time: a printed thermal-slip fallback for centres with no
 farmer phones, per-operator hash chains, photo reading validation against a
