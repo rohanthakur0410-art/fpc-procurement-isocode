@@ -587,3 +587,6 @@ table.simple th { border-bottom: 1.5px solid var(--line); }
 .demo-guide-body p { margin: 0 0 10px; }
 .demo-guide-body ol { margin: 0 0 12px; padding-left: 22px; }
 .demo-guide-body li { margin-bottom: 8px; }
+
+.update-notice { position: relative; z-index: 30; padding: 14px 18px; background: #fff3cd; border-bottom: 2px solid var(--saffron); color: var(--navy); font-size: 14px; }
+.update-notice p { margin: 6px 0 10px; max-width: 650px; line-height: 1.5; }

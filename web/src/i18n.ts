@@ -1,6 +1,9 @@
 export type Lang = 'mr' | 'en';
 
 const dict: Record<string, { mr: string; en: string }> = {
+  updateReady: { mr: 'नवीन आवृत्ती तयार आहे', en: 'New version ready' },
+  updateAdvice: { mr: 'आधी चालू नोंद सेव्ह करा. तयार असाल तेव्हाच अपडेट करा. सेव्ह केलेली रांग कायम राहील.', en: 'Save your current entry first. Update only when you are ready. Your saved upload queue stays on this device.' },
+  updateAction: { mr: 'आता अपडेट करा', en: 'Update now' },
   appName: { mr: 'शेतकरी सरल', en: 'Shetkari Saral' },
   tagline: { mr: 'संकलन व पेमेंट प्रणाली', en: 'Collection & payment system' },
   signIn: { mr: 'साइन इन', en: 'Sign in' },

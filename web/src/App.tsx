@@ -5,6 +5,7 @@ import type { SessionUser } from '@app/shared';
 import { api } from './api';
 import { translate, type Lang } from './i18n';
 import Login from './pages/Login';
+import UpdateNotice from './UpdateNotice';
 import OperatorHome from './pages/OperatorHome';
 import EntryWizard from './pages/EntryWizard';
 import Outbox from './pages/Outbox';
@@ -123,6 +124,7 @@ export default function App() {
 
   return (
     <Ctx.Provider value={state}>
+      <UpdateNotice />
       <Routes>
         <Route path="/login" element={<Login onLogin={(u) => { setUser(u); localStorage.setItem('fpc_user', JSON.stringify(u)); navigate(u.role === 'office' ? '/office' : '/operator'); }} />} />
         <Route path="/operator" element={guard('operator', <OperatorHome />)} />
