@@ -179,7 +179,55 @@ identical amounts), and mobile-width screenshots of every screen.
 | Money math, price board, flags, payment CSV | Bank file upload (CSV download instead) |
 | Auth, roles, per-centre data | AI photo reading needs a free API key to demo |
 
-## 12. How a reviewer runs it
+## 12. UI and design decisions
+
+The interface is designed as a **collection-centre day book**, not a generic
+card app, because the operator's mental model is the paper register it
+replaces.
+
+- **Look:** ink-navy on warm paper, flat document surfaces, thin ruled
+  borders, tabular mono numerals for weights and money. A slip looks like a
+  punched receipt with a dashed stamp box for the official slip number, so
+  the screen itself reads as proof of the purchase.
+- **Marathi first, English toggle:** centre staff read Marathi fastest; the
+  office can switch to English. All money and weight formatting is identical
+  in both.
+- **Operator home = today's register:** a running day-book of this centre's
+  slips with live totals, plus one large ticket-style "new entry" action.
+  Empty states say exactly what to do first.
+- **Single-screen entry with a sticky live-total bar:** farmer, crop, grade,
+  weights and moisture on one screen; net weight and amount update as the
+  operator types, so mistakes are caught before saving. Inputs clear the
+  on-screen keyboard.
+- **Review sheet before save:** the full slip (farmer, crop, grade, gross,
+  tare, moisture, rate, net, amount) is shown for explicit confirmation or
+  edit. Saving is never a surprise.
+- **Office side = accounts desk:** day-book dashboard of all centres, a
+  needs-attention lane for flagged slips, a price board, a weekly payment
+  run with exact totals, and an SMS log. Flagged slips are held, never
+  auto-paid.
+- **States:** every list has loading, empty and error states; offline status
+  and pending-upload counts are always visible; icons are consistent SVG,
+  no emoji.
+
+## 13. What was cut, and what next
+
+Cut deliberately (scope discipline per the brief):
+
+- Real SMS gateway and real bank upload (the brief instructs mocking both;
+  the internal SMS log and the CSV are the honest stand-ins).
+- On-device AI model for photo reading; a hosted free-tier model keeps the
+  phone app light, with manual entry as the primary path.
+- Multi-operator keying of the hash chain on a shared device (single
+  operator session assumed, see §9).
+- Live deployment; the app runs as one Node process and deploys to a free
+  Render service unchanged.
+
+Next, with more time: a printed thermal-slip fallback for centres with no
+farmer phones, per-operator hash chains, photo reading validation against a
+labelled sample set, and a marathi voice readout of the slip.
+
+## 14. How a reviewer runs it
 
 See `deployment.md`: `npm install && npm run dev`, log in as
 `operator`/`demo1234` or `office`/`demo1234`. The database seeds itself with
