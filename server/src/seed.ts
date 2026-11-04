@@ -7,11 +7,8 @@ export function todayIST(): string {
 }
 
 export function istIso(hhmm: string, date = todayIST()): string {
-  // hhmm like "09:40" in IST -> UTC ISO string
-  const [h, m] = hhmm.split(':').map(Number);
-  const d = new Date(`${date}T00:00:00+05:30`);
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
+  // Explicit offset is independent of the server process timezone.
+  return new Date(`${date}T${hhmm}:00+05:30`).toISOString();
 }
 
 export const CROP_MR: Record<string, string> = { soybean: 'सोयाबीन', tur: 'तूर' };

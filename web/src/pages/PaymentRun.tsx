@@ -87,16 +87,22 @@ export default function PaymentRun() {
         <h3 style={{ marginBottom: 8 }}>{t('runs')}</h3>
         {runs.length === 0 && <p className="sub">{t('empty')}</p>}
         {runs.map((r) => (
-          <div key={r.id} className="list-item" style={{ cursor: 'default' }}>
+          <div key={r.id} className="list-item payment-run" style={{ cursor: 'default' }}>
             <span>
               <span className="main">#{r.id} · {r.runDate} · {r.itemCount} · ₹{fmtINR(r.totalPaisa)}</span>
               <span className="sub2" style={{ display: 'block' }}>{fmtDate(r.createdAt, lang)}</span>
             </span>
-            <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <span className={`badge ${r.status === 'paid' ? 'green' : 'amber'}`}>{r.status === 'paid' ? t('paid') : t('fileGenerated')}</span>
               <a href={`/api/payment-runs/${r.id}/file`}><button className="btn small">{t('downloadCsv')}</button></a>
               {r.status !== 'paid' && <button className="btn small" onClick={() => markPaid(r.id)}>{t('markPaid')}</button>}
             </span>
+            <details className="run-items"><summary>{t('farmerPaymentStatus')}</summary>
+              {(r.items || []).map((item: any)=><div className="kv" key={item.slipNo}>
+                <span>{lang === 'mr' ? item.farmerNameMr : item.farmerName}<small style={{display:'block'}}>{item.slipNo}</small></span>
+                <span>₹{fmtINR(item.amountPaisa)}<small style={{display:'block'}}>{r.status === 'paid' ? t('demoPaid') : t('fileGenerated')}</small></span>
+              </div>)}
+            </details>
           </div>
         ))}
       </div>

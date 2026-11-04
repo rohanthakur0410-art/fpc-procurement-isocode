@@ -108,6 +108,7 @@ export default function EntryWizard() {
   const [member, setMember] = useState<Member | null>(null);
   const [crop, setCrop] = useState<Crop | null>(null);
   const [grade, setGrade] = useState<Grade>('A');
+  const [priceRevision, setPriceRevision] = useState(0);
   const [rate, setRate] = useState<number | null>(null);
   const [gross, setGross] = useState('');
   const [tare, setTare] = useState('');
@@ -120,13 +121,13 @@ export default function EntryWizard() {
   const [showReview, setShowReview] = useState(false);
 
   useEffect(() => {
-    refreshReferenceData().then(() => cachedMembers().then(setMembers));
+    refreshReferenceData().then(() => { cachedMembers().then(setMembers); setPriceRevision((n) => n + 1); });
     cachedMembers().then(setMembers);
   }, []);
 
   useEffect(() => {
     if (crop) cachedRate(todayIST(), crop, grade).then(setRate);
-  }, [crop, grade]);
+  }, [crop, grade, priceRevision]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -147,7 +148,7 @@ export default function EntryWizard() {
   if (scaleAi.status === 'ok' && scaleAi.valueTenths != null && grossT != null && grossT !== scaleAi.valueTenths) mismatches.push(t('grossKg'));
   if (moistAi.status === 'ok' && moistAi.valueTenths != null && moistT != null && moistT !== moistAi.valueTenths) mismatches.push(t('moisture'));
 
-  const weightsValid = grossT != null && tareT != null && moistT != null && grossT > tareT && rate != null;
+  const weightsValid = grossT != null && tareT != null && moistT != null && moistT <= 400 && grossT > tareT && grossT <= 100_000_000 && rate != null;
   const canSave = !!member && !!crop && weightsValid && mismatches.length === 0 && !busy && scaleAi.status !== 'reading' && moistAi.status !== 'reading';
 
   const doSave = async () => {
@@ -156,6 +157,10 @@ export default function EntryWizard() {
     setSaveErr('');
     setShowReview(false);
     try {
+      const currentRate = await cachedRate(todayIST(), crop, grade);
+      if (currentRate == null || currentRate !== rate) {
+        setRate(currentRate); setStep(1); setSaveErr(t('dateRateChanged')); return;
+      }
       const photoName = scaleAi.photoName || moistAi.photoName || null;
       await saveEntry({
         centreCode: user.centreCode, farmerId: member.farmerId, crop, grade,

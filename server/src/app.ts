@@ -156,7 +156,7 @@ export function createApp(db: DB) {
     );
     const seqStart = chainRow?.last_seq ?? 0;
     const seqOk = fresh.every((e, i) => e.seq === seqStart + i + 1);
-    const chainBroken = !chainCheck.ok || !seqOk;
+    let chainBroken = !chainCheck.ok || !seqOk;
 
     const results: SyncResultItem[] = [];
     const now = new Date().toISOString();
@@ -164,12 +164,19 @@ export function createApp(db: DB) {
     const ddmmyyyy = `${d}/${mo}/${y}`;
 
     const tx = db.transaction(() => {
+      // Hashing awaited above. Another request may have committed meanwhile.
+      const latest = db.prepare('SELECT last_hash FROM device_chains WHERE device_id = ?').get(deviceId) as { last_hash: string } | undefined;
+      if ((latest?.last_hash ?? GENESIS) !== startHash) chainBroken = true;
       for (const e of sorted) {
-        const existing = db.prepare('SELECT slip_no, status FROM purchases WHERE client_uuid = ?').get(e.uuid) as
-          | { slip_no: string; status: string }
+        const existing = db.prepare('SELECT slip_no, status, entry_hash, device_id, centre_code, flags FROM purchases WHERE client_uuid = ?').get(e.uuid) as
+          | { slip_no: string; status: string; entry_hash: string; device_id: string; centre_code: string; flags: string }
           | undefined;
         if (existing) {
-          results.push({ uuid: e.uuid, result: 'duplicate', slipNo: existing.slip_no, status: existing.status as any });
+          if (existing.entry_hash !== e.hash || existing.device_id !== deviceId || existing.centre_code !== req.user!.centreCode) {
+            results.push({ uuid: e.uuid, result: 'rejected', error: 'uuid_conflict' });
+            continue;
+          }
+          results.push({ uuid: e.uuid, result: 'duplicate', slipNo: existing.slip_no, status: existing.status as any, flags: JSON.parse(existing.flags) });
           continue;
         }
         const member = db.prepare('SELECT id, name_mr FROM members WHERE farmer_id = ?').get(e.payload.farmerId) as
@@ -328,7 +335,7 @@ export function createApp(db: DB) {
     const now = new Date().toISOString();
     const placeholders = body.data.purchaseIds.map(() => '?').join(',');
     const rows = db
-      .prepare(`SELECT id, member_id, amount_paisa FROM purchases WHERE id IN (${placeholders}) AND status = 'approved' AND NOT EXISTS (SELECT 1 FROM payment_items i WHERE i.purchase_id = purchases.id)`)
+      .prepare(`SELECT id, member_id, amount_paisa FROM purchases WHERE id IN (${placeholders}) AND status = 'approved' AND EXISTS (SELECT 1 FROM members m WHERE m.id = purchases.member_id AND m.verified = 1) AND NOT EXISTS (SELECT 1 FROM payment_items i WHERE i.purchase_id = purchases.id)`)
       .all(...body.data.purchaseIds) as { id: number; member_id: number; amount_paisa: number }[];
     if (rows.length === 0) {
       res.status(400).json({ error: 'no_approved_purchases' });
@@ -352,7 +359,9 @@ export function createApp(db: DB) {
     const runs = db
       .prepare('SELECT id, run_date AS runDate, item_count AS itemCount, total_paisa AS totalPaisa, status, created_at AS createdAt FROM payment_runs ORDER BY id DESC')
       .all();
-    res.json({ runs });
+    const items = db.prepare(`SELECT p.slip_no AS slipNo, m.name AS farmerName, m.name_mr AS farmerNameMr, i.amount_paisa AS amountPaisa
+      FROM payment_items i JOIN purchases p ON p.id=i.purchase_id JOIN members m ON m.id=i.member_id WHERE i.run_id=? ORDER BY i.id`);
+    res.json({ runs: runs.map((r: any) => ({ ...r, items: items.all(r.id) })) });
   });
 
   app.post('/api/payment-runs/:id/mark-paid', requireAuth, requireRole('office'), (req, res) => {

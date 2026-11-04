@@ -590,3 +590,9 @@ table.simple th { border-bottom: 1.5px solid var(--line); }
 
 .update-notice { position: relative; z-index: 30; padding: 14px 18px; background: #fff3cd; border-bottom: 2px solid var(--saffron); color: var(--navy); font-size: 14px; }
 .update-notice p { margin: 6px 0 10px; max-width: 650px; line-height: 1.5; }
+
+/* Payment actions remain reachable on narrow phones. */
+.payment-run { flex-wrap: wrap; gap: 12px; }
+.payment-run > span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.run-items { width: 100%; }
+.run-items summary { cursor: pointer; color: var(--navy); }

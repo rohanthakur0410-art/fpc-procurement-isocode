@@ -199,6 +199,46 @@ describe('centre, price and payment integrity regressions', () => {
     const first = await call('/api/payment-runs', { method: 'POST', cookie: officeCookie, body: { purchaseIds: [p.id] } });
     const second = await call('/api/payment-runs', { method: 'POST', cookie: officeCookie, body: { purchaseIds: [p.id] } });
     expect(first.status).toBe(200); expect(second.status).toBe(400);
+    const runs = await call('/api/payment-runs', {cookie:officeCookie});
+    const made = runs.body.runs.find((r: any)=>r.id===first.body.runId);
+    expect(made.items).toHaveLength(1);
+    expect(made.items[0].amountPaisa).toBe(first.body.totalPaisa);
     expect((db.prepare('SELECT COUNT(*) c FROM payment_items WHERE purchase_id = ?').get(p.id) as any).c).toBe(1);
+  });
+});
+
+
+describe('retry identity and bank safety', () => {
+  it('rejects changed contents under a previously stored UUID', async () => {
+    const e = await makeEntry('71111111-1111-4111-8111-111111111111',1,GENESIS);
+    const original = {deviceId:'retry-identity',entries:[e]};
+    await call('/api/sync',{method:'POST',cookie:operatorCookie,body:original});
+    const changed = await buildEntry(e.uuid,1,GENESIS,e.deviceTs,{...e.payload,grossTenths:7777});
+    const r = await call('/api/sync',{method:'POST',cookie:operatorCookie,body:{...original,entries:[changed]}});
+    expect(r.body.results[0].error).toBe('uuid_conflict');
+    expect((db.prepare('SELECT gross_tenths FROM purchases WHERE client_uuid=?').get(e.uuid) as any).gross_tenths).toBe(5000);
+  });
+  it('does not disclose a stored slip to a different device retry',async()=>{
+    const e=await makeEntry('72222222-2222-4222-8222-222222222222',1,GENESIS);
+    await call('/api/sync',{method:'POST',cookie:operatorCookie,body:{deviceId:'device-owner',entries:[e]}});
+    const r=await call('/api/sync',{method:'POST',cookie:operatorCookie,body:{deviceId:'other-device',entries:[e]}});
+    expect(r.body.results[0].error).toBe('uuid_conflict');
+    expect(r.body.results[0].slipNo).toBeUndefined();
+  });
+  it('returns existing hold flags on a legitimate retry',async()=>{
+    const e=await makeEntry('73333333-3333-4333-8333-333333333333',1,GENESIS,{rateRupees:9999});
+    const body={deviceId:'retry-flags',entries:[e]};
+    await call('/api/sync',{method:'POST',cookie:operatorCookie,body});
+    const r=await call('/api/sync',{method:'POST',cookie:operatorCookie,body});
+    expect(r.body.results[0].flags).toContain('price_mismatch');
+  });
+  it('does not include an unverified beneficiary in a payment file',async()=>{
+    const e=await makeEntry('74444444-4444-4444-8444-444444444444',1,GENESIS,{farmerId:'F0008',moistureTenths:119});
+    await call('/api/sync',{method:'POST',cookie:operatorCookie,body:{deviceId:'bank-hold',entries:[e]}});
+    const p=db.prepare('SELECT id,member_id FROM purchases WHERE client_uuid=?').get(e.uuid) as any;
+    db.prepare('UPDATE members SET verified=0 WHERE id=?').run(p.member_id);
+    const r=await call('/api/payment-runs',{method:'POST',cookie:officeCookie,body:{purchaseIds:[p.id]}});
+    expect(r.status).toBe(400);
+    db.prepare('UPDATE members SET verified=1 WHERE id=?').run(p.member_id);
   });
 });

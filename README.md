@@ -28,7 +28,7 @@ Demo logins: `operator` / `demo1234` (centre C07), `office` / `demo1234`.
 
 ## Test
 
-    npm test           # 42 tests: brief sample figures, hash chain, sync, flags, payment run
+    npm test           # 47 tests: brief sample figures, hash chain, sync, flags, payment run
 
 ## A note on the commit history
 

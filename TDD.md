@@ -76,7 +76,7 @@ A centre phone is a shared, physical device. This is an unsigned, tamper-evident
 Decision recorded: a broken chain flags rather than rejects, because rejecting
 loses the farmer's produce record. The office decides. Broken or rejected batches do not advance the trusted server anchor. Sequence continuity and hashes are checked for new entries; already stored retries are excluded from that check.
 
-Limits: device timestamps are untrusted. An attacker controlling the device can rewrite and rehash an entirely unsynced suffix, or delete its tail without detection. Device IDs are client-provided, not hardware-bound identities. A compromised server/database can rewrite the record. Signed device identities, append-only external checkpoints and trusted time are out of scope. Clearing browser storage or losing the device can lose unsynced entries; the design does not guarantee recovery. Concurrent entry creation across multiple tabs is not supported.
+Limits: device timestamps are untrusted. An attacker controlling the device can rewrite and rehash an entirely unsynced suffix, or delete its tail without detection. Device IDs are client-provided, not hardware-bound identities. A compromised server/database can rewrite the record. Signed device identities, append-only external checkpoints and trusted time are out of scope. Clearing browser storage or losing the device can lose unsynced entries; the design does not guarantee recovery. Entry saving uses Web Locks when available to serialize same-origin tabs; browsers without Web Locks still assume one entry tab. This is not cross-device identity or tamper protection.
 
 ### 4.3 Idempotent sync
 
@@ -130,7 +130,7 @@ Two kinds, clearly separated:
 - **Weekly payment run:** the office selects approved, unpaid purchases and
   generates a bulk payment CSV (beneficiary, masked account, IFSC, exact
   amount, per-slip payment reference). Marking a run paid sets each purchase
-  to `paid`. Flagged purchases are excluded until approved. Bank account and
+  to `paid`. Flagged purchases are excluded until approved. Unverified registry beneficiaries are excluded server-side. Each run lists its per-farmer status and amount. Bank account and
   IFSC in the seed data are synthetic; the CSV layout is a generic NEFT-style
   file (assumption - the brief names no bank).
 
@@ -154,13 +154,13 @@ Two kinds, clearly separated:
    threshold (1.5× a simple yield-per-acre estimate) are placeholder rules the
    office could tune; the mechanism is what matters.
 4. **Slip numbering** continues per centre from the sample data's last numbers.
-5. **Price uncertainty:** comparing against the current central rate for the device-stated collection date is a conservative prototype assumption, not an employer-supplied policy. A missing or changed rate preserves the submitted rate and computed amount but flags the entry for office review. There is no price-version history. Simple office approval is blocked for price-held records (409); it cannot bypass rate correction. The correction/reversal workflow remains unfinished, so these records stay held. The app does not silently reuse yesterday's price after midnight: without today's cached price, it blocks new collection entry rather than inventing a payable rate. Capturing an unpriced collection draft would require a separate business decision and UI.
+5. **Price uncertainty:** comparing against the current central rate for the device-stated collection date is a conservative prototype assumption, not an employer-supplied policy. A missing or changed rate preserves the submitted rate and computed amount but flags the entry for office review. There is no price-version history. Simple office approval is blocked for price-held records (409); it cannot bypass rate correction. The correction/reversal workflow remains unfinished, so these records stay held. The save action rechecks the current IST date and cached rate, keeping form values if the date/rate changed. The app does not silently reuse yesterday's price after midnight: without today's cached price, it blocks new collection entry rather than inventing a payable rate. Capturing an unpriced collection draft would require a separate business decision and UI.
 6. One operator session per centre device is assumed; multi-operator devices
    would key the hash chain per operator login instead.
 
 ## 10. Testing
 
-42 automated tests (`npx vitest run`):
+47 automated tests (`npx vitest run`):
 
 - **Calculation:** every brief sample row exact to the paisa; fractional
   moisture; rounding behaviour.
@@ -172,6 +172,7 @@ Two kinds, clearly separated:
 - **Flags & payments:** unusual quantity flagged and held; flagged purchase
   excluded from payment run; CSV totals equal the sum of included slips to
   the paisa; SMS queued per accepted purchase; a slip already in a generated run cannot be added to another.
+- **Further integrity:** a changed UUID retry or different-device retry is rejected, legitimate retries retain hold flags, unverified beneficiaries are excluded, and seed timestamps are host-timezone independent.
 - **Vision adapter, mocked provider only:** scale/moisture response parsing, unsure/malformed/invalid result, missing key and provider error. No external key or live vision call was used.
 
 Manual verification: full offline round-trip on a fresh browser profile with
@@ -187,7 +188,7 @@ identical amounts), with a mobile-width visual check of each staged entry screen
 | Money math, price board, flags, payment CSV | Bank file upload (CSV download instead) |
 | Auth, roles, per-centre data | |
 
-Registry data is seeded, searchable and read-only. The verified marker and masked bank fields are synthetic demo data, not real bank/identity verification. Payment runs are initiated manually; there is no automatic weekly schedule. CSV layout is not validated against any bank. A generated unpaid run reserves its slips to prevent duplicate file inclusion; cancellation/reissue is not implemented.
+Registry data has a dedicated searchable screen available online and from cached data offline, and remains seeded/read-only. The verified marker and masked bank fields are synthetic demo data, not real bank/identity verification. Payment runs are initiated manually; there is no automatic weekly schedule. CSV layout is not validated against any bank. A generated unpaid run reserves its slips to prevent duplicate file inclusion; cancellation/reissue is not implemented.
 
 Implemented but unverified (neither tested-real nor mocked): AI photo reading.
 The endpoint and fallback are coded, but the vision path has not been exercised
@@ -249,3 +250,16 @@ labelled sample set, and a marathi voice readout of the slip.
 See `deployment.md`: `npm install && npm run dev`, log in as
 `operator`/`demo1234` or `office`/`demo1234`. The database seeds itself with
 the brief's sample data on first run.
+
+
+### Evaluator journey check, private local build (4 November evening)
+
+Office changed soybean-A to Rs4,900/q. Operator read that central rate and saved
+500.0kg gross, 10.0kg tare, 11.9% moisture: 490.0kg net and Rs24,010.00. The
+payment CSV included that exact amount; the four-slip run total was Rs169,425.50,
+and marking the mocked run paid set all four purchase statuses. Mobile review
+caught overflowing payment actions; the actions now wrap and remain reachable.
+Registry cached reload succeeded with actual browser network disconnection.
+A simulated503 on session lookup retained the cached operator rather than treating
+an unavailable server as expired credentials. These are controlled local checks,
+not evidence of production durability, real bank processing or live vision accuracy.

@@ -20,7 +20,7 @@ export default function OperatorHome() {
     setPending(out.filter((e: any) => e.state === 'pending').length);
     const sent = await d.getAll('sent');
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
-    setTodaySlips(sent.filter((e: any) => e.deviceTs.startsWith(today)).sort((a: any, b: any) => a.seq - b.seq));
+    setTodaySlips(sent.filter((e: any) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(e.deviceTs)) === today).sort((a: any, b: any) => a.seq - b.seq));
     setOnline(isOnlineNow());
   }, []);
 

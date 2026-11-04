@@ -29,6 +29,12 @@ export async function ensureDeviceId(): Promise<string> {
 // Every entry is written to the on-phone outbox first (works with zero network),
 // chained to the previous entry from this device, then synced when possible.
 export async function saveEntry(payload: PurchasePayload): Promise<OutboxEntry> {
+  // Web Locks serializes sequence allocation across same-origin tabs.
+  if (navigator.locks) return navigator.locks.request('fpc-entry-save', () => saveEntryLocked(payload));
+  return saveEntryLocked(payload);
+}
+
+async function saveEntryLocked(payload: PurchasePayload): Promise<OutboxEntry> {
   const deviceId = await ensureDeviceId();
   const seq = ((await kvGet<number>('seq')) ?? 0) + 1;
   const prevHash = (await kvGet<string>('lastHash')) ?? GENESIS;

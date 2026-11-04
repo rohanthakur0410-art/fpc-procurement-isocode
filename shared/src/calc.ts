@@ -8,9 +8,10 @@ export const DEDUCTION_PERCENT_PER_POINT = 1;
 export function netTenths(grossTenths: number, tareTenths: number, moistureTenths: number): number {
   const raw = grossTenths - tareTenths;
   if (raw <= 0) return 0;
-  const pointsOver = Math.max(0, moistureTenths - MOISTURE_BASE_TENTHS) / 10;
-  const factor = 1 - (pointsOver * DEDUCTION_PERCENT_PER_POINT) / 100;
-  return Math.max(0, Math.round(raw * factor));
+  // 1 moisture tenth is a 1/1000 deduction. Integer numerator avoids
+  // floating-point factors and rounds half a tenth upward deterministically.
+  const deduction = Math.max(0, moistureTenths - MOISTURE_BASE_TENTHS);
+  return Math.max(0, Math.floor((raw * (1000 - deduction) + 500) / 1000));
 }
 
 export function amountPaisa(netTenthsValue: number, rateRupeesPerQuintal: number): number {

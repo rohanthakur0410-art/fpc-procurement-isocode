@@ -13,6 +13,7 @@ import OfficeDashboard from './pages/OfficeDashboard';
 import PriceBoard from './pages/PriceBoard';
 import PaymentRun from './pages/PaymentRun';
 import SmsLog from './pages/SmsLog';
+import Members from './pages/Members';
 
 interface AppState {
   user: SessionUser | null;
@@ -75,6 +76,7 @@ export function Shell({ children, wide }: { children: ReactNode; wide?: boolean 
         </div>
       </div>
       <div className={wide ? 'page wide' : 'page'}>{children}</div>
+      {user && !location.pathname.endsWith('/entry') && <div className="page" style={{paddingTop:0}}><Link to={user.role === 'office' ? '/office/members' : '/operator/members'}>{t('memberRegistry')}</Link></div>}
       <BottomNav />
     </div>
   );
@@ -94,9 +96,10 @@ export default function App() {
         setUser(user);
         localStorage.setItem('fpc_user', JSON.stringify(user));
       })
-      .catch(() => {
-        // Offline shell: keep the cached profile so the app still opens.
-        if (navigator.onLine) {
+      .catch((error: any) => {
+        // A captive portal, timeout or 5xx is not evidence the session expired.
+        // Server APIs still authenticate every later request.
+        if (error.code === 'not_signed_in' || error.code === 'session_expired') {
           setUser(null);
           localStorage.removeItem('fpc_user');
         }
@@ -131,6 +134,8 @@ export default function App() {
         <Route path="/operator/entry" element={guard('operator', <EntryWizard />)} />
         <Route path="/operator/outbox" element={guard('operator', <Outbox />)} />
         <Route path="/operator/sms" element={guard('operator', <SmsLog />)} />
+        <Route path="/operator/members" element={guard('operator', <Members />)} />
+        <Route path="/office/members" element={guard('office', <Members />)} />
         <Route path="/office" element={guard('office', <OfficeDashboard />)} />
         <Route path="/office/prices" element={guard('office', <PriceBoard />)} />
         <Route path="/office/payments" element={guard('office', <PaymentRun />)} />
