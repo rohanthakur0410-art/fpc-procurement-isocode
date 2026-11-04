@@ -17,7 +17,7 @@ export default function PaymentRun() {
   const load = useCallback(async () => {
     try {
       const [a, f, r] = await Promise.all([
-        api.purchases('?status=approved'),
+        api.purchases('?status=approved&unassigned=1'),
         api.purchases('?status=flagged'),
         api.runs(),
       ]);
@@ -32,8 +32,7 @@ export default function PaymentRun() {
   const createRun = async () => {
     setBusy(true); setErr(''); setMsg('');
     try {
-      const inRun = approved.filter((p) => !runs.some(() => false));
-      const r = await api.createRun(inRun.map((p) => p.id));
+      const r = await api.createRun(approved.map((p) => p.id));
       setMsg(`✓ ${r.itemCount} · ₹${fmtINR(r.totalPaisa)}`);
       await load();
     } catch (e: any) {
@@ -78,7 +77,7 @@ export default function PaymentRun() {
                   {(p.flags as string[]).map((f) => t(`flag_${f}`)).join(' · ')} · ₹{fmtINR(p.amountPaisa)}
                 </span>
               </span>
-              <button className="btn small" onClick={() => approve(p.id)}>{t('approve')}</button>
+              {p.flags.some((f: string) => f === 'price_unverified' || f === 'price_mismatch') ? <span className="badge amber">{t('priceHeld')}</span> : <button className="btn small" onClick={() => approve(p.id)}>{t('approve')}</button>}
             </div>
           ))}
         </div>

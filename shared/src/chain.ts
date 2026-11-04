@@ -1,8 +1,7 @@
-// Tamper-evident offline queue: every entry saved on a device carries a hash that
-// links it to the previous entry from the same device. Editing or deleting an old
-// queued entry breaks the chain and is detected at sync.
-// This is tamper-EVIDENCE, not tamper-proofing: a determined attacker with the
-// device can still rewrite local storage, but the change is detectable.
+// Unsigned hash chain: detects changes relative to a retained server anchor.
+// This is not a trusted timestamp or tamper-proof device record. A person who
+// controls the device can rewrite and rehash an entirely unsynced suffix.
+// Deleting the unsynced tail cannot be detected without an external witness.
 
 export const GENESIS = 'GENESIS';
 

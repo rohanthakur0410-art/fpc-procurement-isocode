@@ -29,6 +29,7 @@ export async function readMeterPhoto(
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({
           contents: [
             {
@@ -48,7 +49,7 @@ export async function readMeterPhoto(
     const parsed = JSON.parse(cleaned);
     if (parsed.unsure) return { status: 'unsure', reason: 'AI could not read the photo clearly.' };
     const raw = kind === 'scale' ? Number(parsed.weightKg) : Number(parsed.moisturePercent);
-    if (!Number.isFinite(raw) || raw <= 0 || raw > 100000) {
+    if (!Number.isFinite(raw) || raw < (kind === 'moisture' ? 0 : 0.1) || raw > (kind === 'moisture' ? 40 : 100000)) {
       return { status: 'unsure', reason: 'AI returned an implausible value.' };
     }
     return { status: 'ok', valueTenths: Math.round(raw * 10) };

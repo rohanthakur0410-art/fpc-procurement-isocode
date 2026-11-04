@@ -154,3 +154,51 @@ describe('payment run', () => {
     expect(paid.c).toBe(approved.length);
   });
 });
+
+
+describe('centre, price and payment integrity regressions', () => {
+  it('rejects a cross-centre write without saving or advancing the chain', async () => {
+    const e = await makeEntry('61111111-1111-4111-8111-111111111111', 1, GENESIS, { centreCode: 'C12' });
+    const r = await call('/api/sync', { method: 'POST', cookie: operatorCookie, body: { deviceId: 'cross-centre', entries: [e] } });
+    expect(r.status).toBe(403);
+    expect(db.prepare('SELECT 1 FROM device_chains WHERE device_id = ?').get('cross-centre')).toBeUndefined();
+    expect(db.prepare('SELECT 1 FROM purchases WHERE client_uuid = ?').get(e.uuid)).toBeUndefined();
+  });
+  it('preserves a mismatched offline rate but holds it out of payment', async () => {
+    const e = await makeEntry('62222222-2222-4222-8222-222222222222', 1, GENESIS, { rateRupees: 9999 });
+    const r = await call('/api/sync', { method: 'POST', cookie: operatorCookie, body: { deviceId: 'bad-price', entries: [e] } });
+    expect(r.body.results[0].result).toBe('stored');
+    expect(r.body.results[0].status).toBe('flagged');
+    expect(r.body.results[0].flags).toContain('price_mismatch');
+    const p = db.prepare('SELECT id FROM purchases WHERE client_uuid = ?').get(e.uuid) as any;
+    const run = await call('/api/payment-runs', { method: 'POST', cookie: officeCookie, body: { purchaseIds: [p.id] } });
+    expect(run.status).toBe(400);
+    const review = await call(`/api/purchases/${p.id}/review`, { method: 'POST', cookie: officeCookie, body: { action: 'approve' } });
+    expect(review.status).toBe(409);
+    expect((db.prepare('SELECT status FROM purchases WHERE id = ?').get(p.id) as any).status).toBe('flagged');
+  });
+  it('preserves an entry whose dated central price is absent, on hold', async () => {
+    const e = await makeEntry('63333333-3333-4333-8333-333333333333', 1, GENESIS);
+    const dated = await buildEntry(e.uuid, 1, GENESIS, '2020-01-01T12:00:00.000Z', e.payload);
+    const r = await call('/api/sync', { method: 'POST', cookie: operatorCookie, body: { deviceId: 'old-price', entries: [dated] } });
+    expect(r.body.results[0].flags).toContain('price_unverified');
+    expect(r.body.results[0].result).toBe('stored');
+  });
+  it('does not move a trusted anchor after a broken chain', async () => {
+    const before = db.prepare('SELECT last_hash FROM device_chains WHERE device_id = ?').get('test-device-1') as any;
+    const e = await makeEntry('64444444-4444-4444-8444-444444444444', 6, 'WRONG');
+    await call('/api/sync', { method: 'POST', cookie: operatorCookie, body: { deviceId: 'test-device-1', entries: [e] } });
+    expect((db.prepare('SELECT last_hash FROM device_chains WHERE device_id = ?').get('test-device-1') as any).last_hash).toBe(before.last_hash);
+  });
+  it('cannot generate a second file containing an already reserved slip', async () => {
+    // A clean new member/date avoids anomaly rules used by earlier tests.
+    const e = await makeEntry('65555555-5555-4555-8555-555555555555', 1, GENESIS, { farmerId: 'F0007', moistureTenths: 117 });
+    const sync = await call('/api/sync', { method: 'POST', cookie: operatorCookie, body: { deviceId: 'payment-once', entries: [e] } });
+    expect(sync.body.results[0].status).toBe('approved');
+    const p = db.prepare('SELECT id FROM purchases WHERE client_uuid = ?').get(e.uuid) as any;
+    const first = await call('/api/payment-runs', { method: 'POST', cookie: officeCookie, body: { purchaseIds: [p.id] } });
+    const second = await call('/api/payment-runs', { method: 'POST', cookie: officeCookie, body: { purchaseIds: [p.id] } });
+    expect(first.status).toBe(200); expect(second.status).toBe(400);
+    expect((db.prepare('SELECT COUNT(*) c FROM payment_items WHERE purchase_id = ?').get(p.id) as any).c).toBe(1);
+  });
+});

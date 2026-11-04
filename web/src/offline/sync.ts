@@ -36,9 +36,11 @@ export async function saveEntry(payload: PurchasePayload): Promise<OutboxEntry> 
   const built = await buildEntry(crypto.randomUUID(), seq, prevHash, deviceTs, payload as unknown as Record<string, unknown>);
   const entry: OutboxEntry = { ...built, deviceId, payload, state: 'pending' };
   const d = await getDb();
-  await d.put('outbox', entry);
-  await kvSet('seq', seq);
-  await kvSet('lastHash', entry.hash);
+  const tx = d.transaction(['outbox', 'kv'], 'readwrite');
+  await tx.objectStore('outbox').put(entry);
+  await tx.objectStore('kv').put(seq, 'seq');
+  await tx.objectStore('kv').put(entry.hash, 'lastHash');
+  await tx.done;
   return entry;
 }
 
@@ -74,8 +76,10 @@ export async function trySync(): Promise<SyncOutcome> {
         // Duplicate = the server already has this exact slip (retry after a
         // dropped connection). Stored once either way - never twice.
         const sent: SentEntry = { ...entry, slipNo: r.slipNo, status: r.status, flags: r.flags ?? [] };
-        await d.put('sent', sent);
-        await d.delete('outbox', r.uuid);
+        const tx = d.transaction(['sent', 'outbox'], 'readwrite');
+        await tx.objectStore('sent').put(sent);
+        await tx.objectStore('outbox').delete(r.uuid);
+        await tx.done;
         if (r.result === 'stored') out.stored++;
         else out.duplicates++;
       } else {

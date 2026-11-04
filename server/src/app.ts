@@ -136,6 +136,11 @@ export function createApp(db: DB) {
       return;
     }
     const { deviceId, entries } = parsed.data;
+    // Reject a cross-centre batch atomically. Do not advance its chain anchor.
+    if (entries.some((e) => e.payload.centreCode !== req.user!.centreCode)) {
+      res.status(403).json({ error: 'wrong_centre' });
+      return;
+    }
     const sorted = [...entries].sort((a, b) => a.seq - b.seq);
 
     const chainRow = db.prepare('SELECT last_seq, last_hash FROM device_chains WHERE device_id = ?').get(deviceId) as
@@ -143,11 +148,15 @@ export function createApp(db: DB) {
       | undefined;
     const startHash = chainRow?.last_hash ?? GENESIS;
 
+    // Retries already stored on the server are not new links in the chain.
+    const fresh = sorted.filter((e) => !db.prepare('SELECT 1 FROM purchases WHERE client_uuid = ?').get(e.uuid));
     const chainCheck = await verifyChain(
-      sorted.map((e) => ({ uuid: e.uuid, seq: e.seq, prevHash: e.prevHash, deviceTs: e.deviceTs, payload: e.payload, hash: e.hash })),
+      fresh.map((e) => ({ uuid: e.uuid, seq: e.seq, prevHash: e.prevHash, deviceTs: e.deviceTs, payload: e.payload, hash: e.hash })),
       startHash
     );
-    const chainBroken = !chainCheck.ok;
+    const seqStart = chainRow?.last_seq ?? 0;
+    const seqOk = fresh.every((e, i) => e.seq === seqStart + i + 1);
+    const chainBroken = !chainCheck.ok || !seqOk;
 
     const results: SyncResultItem[] = [];
     const now = new Date().toISOString();
@@ -178,6 +187,13 @@ export function createApp(db: DB) {
           netTenths: net, moistureTenths: p.moistureTenths, deviceTs: e.deviceTs,
         });
         if (chainBroken) flags.push('chain_broken');
+        // Preserve what was collected offline; uncertain prices hold payment.
+        // The device date is evidence, not a trusted timestamp.
+        const purchaseDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(e.deviceTs));
+        const officialPrice = db.prepare('SELECT rate_rupees FROM prices WHERE price_date = ? AND crop = ? AND grade = ?')
+          .get(purchaseDate, p.crop, p.grade) as { rate_rupees: number } | undefined;
+        if (!officialPrice) flags.push('price_unverified');
+        else if (officialPrice.rate_rupees !== p.rateRupees) flags.push('price_mismatch');
         const status = flags.length > 0 ? 'flagged' : 'approved';
 
         db.prepare('UPDATE centres SET slip_counter = slip_counter + 1 WHERE code = ?').run(p.centreCode);
@@ -205,8 +221,8 @@ export function createApp(db: DB) {
         );
         results.push({ uuid: e.uuid, result: 'stored', slipNo, status, flags });
       }
-      const last = sorted[sorted.length - 1];
-      if (last) {
+      const last = fresh[fresh.length - 1];
+      if (last && !chainBroken && !results.some((r) => r.result === 'rejected')) {
         db.prepare(
           'INSERT INTO device_chains (device_id, last_seq, last_hash) VALUES (?,?,?) ON CONFLICT(device_id) DO UPDATE SET last_seq = excluded.last_seq, last_hash = excluded.last_hash'
         ).run(deviceId, last.seq, last.hash);
@@ -232,6 +248,9 @@ export function createApp(db: DB) {
       clauses.push('p.status = ?');
       params.push(req.query.status);
     }
+    if (req.query.unassigned === '1') {
+      clauses.push('NOT EXISTS (SELECT 1 FROM payment_items pi WHERE pi.purchase_id = p.id)');
+    }
     if (typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
       clauses.push(`date(p.device_ts, '+5 hours', '+30 minutes') = ?`);
       params.push(req.query.date);
@@ -256,6 +275,12 @@ export function createApp(db: DB) {
     const body = z.object({ action: z.enum(['approve']) }).safeParse(req.body);
     if (!body.success) {
       res.status(400).json({ error: 'invalid_body' });
+      return;
+    }
+    const held = db.prepare('SELECT flags FROM purchases WHERE id = ?').get(req.params.id) as { flags: string } | undefined;
+    const heldFlags: string[] = JSON.parse(held?.flags || '[]');
+    if (heldFlags.some((f) => f === 'price_unverified' || f === 'price_mismatch')) {
+      res.status(409).json({ error: 'price_correction_required', message: 'Rate correction/reversal is not implemented. This price-held purchase cannot be approved.' });
       return;
     }
     const info = db.prepare(`UPDATE purchases SET status = 'approved' WHERE id = ? AND status = 'flagged'`).run(req.params.id);
@@ -303,7 +328,7 @@ export function createApp(db: DB) {
     const now = new Date().toISOString();
     const placeholders = body.data.purchaseIds.map(() => '?').join(',');
     const rows = db
-      .prepare(`SELECT id, member_id, amount_paisa FROM purchases WHERE id IN (${placeholders}) AND status = 'approved'`)
+      .prepare(`SELECT id, member_id, amount_paisa FROM purchases WHERE id IN (${placeholders}) AND status = 'approved' AND NOT EXISTS (SELECT 1 FROM payment_items i WHERE i.purchase_id = purchases.id)`)
       .all(...body.data.purchaseIds) as { id: number; member_id: number; amount_paisa: number }[];
     if (rows.length === 0) {
       res.status(400).json({ error: 'no_approved_purchases' });

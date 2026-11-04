@@ -102,6 +102,7 @@ export default function EntryWizard() {
   const { t, user, lang } = useApp();
   const navigate = useNavigate();
   const [done, setDone] = useState(false);
+  const [step, setStep] = useState(0);
   const [members, setMembers] = useState<Member[]>([]);
   const [q, setQ] = useState('');
   const [member, setMember] = useState<Member | null>(null);
@@ -147,7 +148,7 @@ export default function EntryWizard() {
   if (moistAi.status === 'ok' && moistAi.valueTenths != null && moistT != null && moistT !== moistAi.valueTenths) mismatches.push(t('moisture'));
 
   const weightsValid = grossT != null && tareT != null && moistT != null && grossT > tareT && rate != null;
-  const canSave = !!member && !!crop && weightsValid && mismatches.length === 0 && !busy;
+  const canSave = !!member && !!crop && weightsValid && mismatches.length === 0 && !busy && scaleAi.status !== 'reading' && moistAi.status !== 'reading';
 
   const doSave = async () => {
     if (!canSave || !member || !crop || net == null || amount == null || !user?.centreCode) return;
@@ -191,7 +192,7 @@ export default function EntryWizard() {
   };
 
   const reset = () => {
-    setDone(false); setMember(null); setCrop(null); setGrade('A'); setRate(null);
+    setStep(0); setDone(false); setMember(null); setCrop(null); setGrade('A'); setRate(null);
     setGross(''); setTare(''); setMoisture(''); setScaleAi(emptyAi); setMoistAi(emptyAi);
     setSaved(null); setQ('');
   };
@@ -221,6 +222,9 @@ export default function EntryWizard() {
     <Shell>
       <h1 style={{ marginTop: 18 }}>{t('navNew')}</h1>
 
+      <p className="sub" aria-live="polite">{t('stepLabel')} {step + 1} / 3</p>
+      {step > 0 && <button className="btn small" onClick={() => setStep(step - 1)}>{t('back')}</button>}
+      {step === 0 && <>
       <div className="sect"><span className="n">1</span><h2>{t('selectFarmer')}</h2></div>
       {member ? (
         <div className="sel-farmer">
@@ -251,6 +255,9 @@ export default function EntryWizard() {
         </>
       )}
 
+      <button className="big-btn" disabled={!member} onClick={() => {setStep(1); window.scrollTo(0,0);}}>{t('next')} →</button>
+      </>}
+      {step === 1 && <>
       <div className="sect"><span className="n">2</span><h2>{t('selectCrop')}</h2></div>
       <div className="choice-grid">
         {(['soybean', 'tur'] as Crop[]).map((c) => (
@@ -268,6 +275,9 @@ export default function EntryWizard() {
         </div>
       )}
 
+      <button className="big-btn" disabled={!crop || rate == null} onClick={() => {setStep(2); window.scrollTo(0,0);}}>{t('next')} →</button>
+      </>}
+      {step === 2 && <>
       <div className="sect"><span className="n">3</span><h2>{t('weightsTitle')}</h2></div>
       <div className="field">
         <label>{t('grossKg')}</label>
@@ -299,6 +309,7 @@ export default function EntryWizard() {
         </div>
       </div>
 
+      </>}
       {showReview && member && crop && net != null && amount != null && rate != null && (
         <div className="sheet-backdrop" onClick={() => setShowReview(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>

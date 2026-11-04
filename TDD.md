@@ -29,10 +29,10 @@ Design priorities, in order:
 
 | Role | Who | Can do |
 | --- | --- | --- |
-| `operator` | Collection centre staff, on a phone | Add farmers, record purchases (online or offline), see own centre's slips |
+| `operator` | Collection centre staff, on a phone | Search the seeded farmer registry, record purchases (online or offline), see own centre's slips |
 | `office` | FPC office manager | Set daily prices per crop/grade, see all centres' dashboard, approve flagged purchases, run weekly payments, view SMS log |
 
-Role is enforced on the server for every API call (JWT session cookie, checked
+Authentication is enforced on protected APIs; role checks apply to privileged routes (JWT session cookie, checked
 per route), never only hidden in the UI.
 
 ## 3. Tech choices and why
@@ -42,7 +42,7 @@ per route), never only hidden in the UI.
 | **Node + Express + better-sqlite3** | One process, zero external services to run; SQLite is transactional and good enough for an FPC's volume; easy for a reviewer to run. |
 | **React + Vite PWA (service worker)** | Phone-first web app; the app shell and reference data work offline with no install step - important for low-end Android phones at centres. |
 | **IndexedDB outbox on the phone** | Durable local queue that survives app restarts, unlike in-memory state. |
-| **Shared calculation package (`shared/`)** | Phone and server run the *same* money/weight code, so the slip shown offline always matches what the server stores. |
+| **Shared calculation package (`shared/`)** | Phone and server run the *same* money/weight code, so the same accepted inputs produce identical phone and server amounts. |
 | **Integer tenths / integer paisa** | No floating point anywhere near money or weight. All weight is stored as tenths of a kg, all money as paisa. |
 
 ## 4. The offline-first design (the hard part)
@@ -50,11 +50,10 @@ per route), never only hidden in the UI.
 ### 4.1 Write path
 
 1. Operator completes an entry. The app **always writes to the on-phone
-   outbox first** (IndexedDB), whether or not there is network. Saving never
-   depends on connectivity.
+   outbox first** (IndexedDB), whether or not there is network. Saving does not require connectivity once today's central price and registry are cached. A missing dated price currently blocks a new entry; see §9.
 2. Each entry gets a client-generated UUID, a per-device sequence number, and
    a hash chained to the previous entry from the same device
-   (`hash = SHA-256(canonical JSON of {uuid, seq, prevHash, deviceTs, payload})`;
+   (`hash = SHA-256(prevHash | uuid | seq | deviceTs | canonical(payload))`;
    the first entry chains from `GENESIS`).
 3. The operator immediately sees a **digital slip** (also the SMS text) with
    the computed net weight and amount. If there is no network it says
@@ -64,8 +63,7 @@ per route), never only hidden in the UI.
 
 ### 4.2 Why the hash chain
 
-A centre phone is a shared, physical device. The chain makes two kinds of
-tampering visible:
+A centre phone is a shared, physical device. This is an unsigned, tamper-evident chain, not the brief's literal tamper-proof timestamp. It can expose these cases:
 
 - **Editing history on the phone**: changing an old entry breaks every later
   hash. The server re-computes the chain for the batch; a broken chain is
@@ -76,7 +74,9 @@ tampering visible:
   detected duplicate, not a second payment.
 
 Decision recorded: a broken chain flags rather than rejects, because rejecting
-loses the farmer's produce record. The office decides.
+loses the farmer's produce record. The office decides. Broken or rejected batches do not advance the trusted server anchor. Sequence continuity and hashes are checked for new entries; already stored retries are excluded from that check.
+
+Limits: device timestamps are untrusted. An attacker controlling the device can rewrite and rehash an entirely unsynced suffix, or delete its tail without detection. Device IDs are client-provided, not hardware-bound identities. A compromised server/database can rewrite the record. Signed device identities, append-only external checkpoints and trusted time are out of scope. Clearing browser storage or losing the device can lose unsynced entries; the design does not guarantee recovery. Concurrent entry creation across multiple tabs is not supported.
 
 ### 4.3 Idempotent sync
 
@@ -112,12 +112,12 @@ Two kinds, clearly separated:
    Flags never cancel a purchase.
 2. **AI photo reading (implemented, not yet verified with a live key):** the
    operator can photograph the weighing scale and the moisture meter; a server
-   endpoint sends the photo to a vision model (a free Gemini key via
-   `GEMINI_API_KEY`) and pre-fills the form, and the entry screen is built to
+   endpoint sends the photo to a vision model (a separately authorized Gemini key via
+   `GEMINI_API_KEY`) and proposes a value for the operator to confirm, and the entry screen is built to
    hold saving until a typed value that disagrees with the photo reading is
    corrected - the brief's "when it is wrong, someone can fix it" requirement.
    Status: the endpoint and fallback are coded, but the vision path has not
-   been run against the live model at submission time, so it is presented as
+   been run against the live model in the current private build, so it is presented as
    unverified rather than tested. The tested, primary path is manual entry:
    when no key is configured or the model is unavailable or unsure, the app
    says so and the operator types the values.
@@ -137,10 +137,10 @@ Two kinds, clearly separated:
 ## 8. Security
 
 - Passwords hashed with bcrypt; session is an httpOnly JWT cookie.
-- Every route checks role; operators can only see/create for their own centre.
+- Protected routes check authentication; privileged routes check role. Purchase reads are centre-scoped for operators and cross-centre sync writes return 403 without advancing the anchor.
 - API input validated with zod; money fields re-computed server-side from
   gross/tare/moisture - client-sent amounts are never trusted.
-- Hash chain verified on every sync batch.
+- Hash chain verified for new sync entries. Dated official rates are checked at sync; missing/mismatched prices preserve the recorded purchase but flag it and hold payment. The server never silently approves an arbitrary client rate.
 - Secrets (session secret, optional Gemini key) come from environment
   variables only; none are committed.
 
@@ -154,28 +154,30 @@ Two kinds, clearly separated:
    threshold (1.5× a simple yield-per-acre estimate) are placeholder rules the
    office could tune; the mechanism is what matters.
 4. **Slip numbering** continues per centre from the sample data's last numbers.
-5. One operator session per centre device is assumed; multi-operator devices
+5. **Price uncertainty:** comparing against the current central rate for the device-stated collection date is a conservative prototype assumption, not an employer-supplied policy. A missing or changed rate preserves the submitted rate and computed amount but flags the entry for office review. There is no price-version history. Simple office approval is blocked for price-held records (409); it cannot bypass rate correction. The correction/reversal workflow remains unfinished, so these records stay held. The app does not silently reuse yesterday's price after midnight: without today's cached price, it blocks new collection entry rather than inventing a payable rate. Capturing an unpriced collection draft would require a separate business decision and UI.
+6. One operator session per centre device is assumed; multi-operator devices
    would key the hash chain per operator login instead.
 
 ## 10. Testing
 
-29 automated tests (`npx vitest run`):
+42 automated tests (`npx vitest run`):
 
 - **Calculation:** every brief sample row exact to the paisa; fractional
   moisture; rounding behaviour.
-- **Hash chain:** valid chains verify; any edit/reorder/gap is detected.
+- **Hash chain:** valid links verify; unrehashed payload edits, a deleted middle link and wrong anchor are detected. This does not prove all tampering is detectable.
 - **Auth & access control:** login, wrong password, role enforcement,
-  cross-centre access blocked.
+  cross-centre writes blocked.
 - **Sync:** idempotent re-send returns duplicate; chain-broken batch stored +
-  flagged; slip numbers assigned once.
+  flagged; slip numbers assigned once; mismatched/missing prices held; broken batches retain the anchor.
 - **Flags & payments:** unusual quantity flagged and held; flagged purchase
   excluded from payment run; CSV totals equal the sum of included slips to
-  the paisa; SMS queued per accepted purchase.
+  the paisa; SMS queued per accepted purchase; a slip already in a generated run cannot be added to another.
+- **Vision adapter, mocked provider only:** scale/moisture response parsing, unsure/malformed/invalid result, missing key and provider error. No external key or live vision call was used.
 
 Manual verification: full offline round-trip on a fresh browser profile with
 the network disabled (app loads from service worker cache, farmer list
 available, entry saved offline, syncs later with an official slip number and
-identical amounts), and mobile-width screenshots of every screen.
+identical amounts), with a mobile-width visual check of each staged entry screen and review. This verifies one controlled desktop-Chrome run, not all Android devices, storage eviction, multi-day outage or multi-tab concurrency.
 
 ## 11. What is mocked vs real
 
@@ -185,9 +187,11 @@ identical amounts), and mobile-width screenshots of every screen.
 | Money math, price board, flags, payment CSV | Bank file upload (CSV download instead) |
 | Auth, roles, per-centre data | |
 
+Registry data is seeded, searchable and read-only. The verified marker and masked bank fields are synthetic demo data, not real bank/identity verification. Payment runs are initiated manually; there is no automatic weekly schedule. CSV layout is not validated against any bank. A generated unpaid run reserves its slips to prevent duplicate file inclusion; cancellation/reissue is not implemented.
+
 Implemented but unverified (neither tested-real nor mocked): AI photo reading.
 The endpoint and fallback are coded, but the vision path has not been exercised
-against the live model. Configuring a free API key alone does not establish
+against the live model. Configuring an API key alone does not establish
 operation; it stays labelled unverified until a live run confirms it.
 
 ## 12. UI and design decisions
@@ -207,10 +211,7 @@ replaces.
 - **Operator home = today's register:** a running day-book of this centre's
   slips with live totals, plus one large ticket-style "new entry" action.
   Empty states say exactly what to do first.
-- **Single-screen entry with a sticky live-total bar:** farmer, crop, grade,
-  weights and moisture on one screen; net weight and amount update as the
-  operator types, so mistakes are caught before saving. Inputs clear the
-  on-screen keyboard.
+- **One step per screen:** farmer, then crop/grade, then weight/moisture, followed by the review sheet. Back keeps entered values. The sticky total is on the measurement step.
 - **Review sheet before save:** the full slip (farmer, crop, grade, gross,
   tare, moisture, rate, net, amount) is shown for explicit confirmation or
   edit. Saving is never a surprise.
@@ -228,7 +229,7 @@ Cut deliberately (scope discipline per the brief):
 
 - Real SMS gateway and real bank upload (the brief instructs mocking both;
   the internal SMS log and the CSV are the honest stand-ins).
-- On-device AI model for photo reading; a hosted free-tier model keeps the
+- On-device AI model for photo reading; a hosted model is intended to keep the
   phone app light, with manual entry as the primary path.
 - Multi-operator keying of the hash chain on a shared device (single
   operator session assumed, see §9).

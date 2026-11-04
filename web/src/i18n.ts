@@ -59,6 +59,7 @@ const dict: Record<string, { mr: string; en: string }> = {
   },
   aiUnavailable: { mr: 'AI सध्या उपलब्ध नाही - मूल्य मॅन्युअली टाइप करा', en: 'AI unavailable - type the value manually' },
   aiUnsure: { mr: 'AI ला फोटो निश्चित वाचता आला नाही - मूल्य मॅन्युअली टाइप करा', en: 'AI could not read the photo clearly - type the value manually' },
+  stepLabel: { mr: 'पायरी', en: 'Step' },
   next: { mr: 'पुढे', en: 'Next' },
   back: { mr: 'मागे', en: 'Back' },
   summary: { mr: 'सारांश तपासा', en: 'Check summary' },
@@ -92,6 +93,9 @@ const dict: Record<string, { mr: string; en: string }> = {
   flag_same_farmer_within_hour: { mr: 'तोच शेतकरी एका तासात दुसऱ्यांदा', en: 'Same farmer twice in an hour' },
   flag_weight_beyond_land_yield: { mr: 'जमिनीच्या अंदाजे उत्पादनापेक्षा खूप जास्त वजन', en: 'Weight far beyond land yield' },
   flag_moisture_too_uniform: { mr: 'एका केंद्रावर आर्द्रता वाचन एकसारखी', en: 'Moisture readings too uniform at one centre' },
+  priceHeld: { mr: 'दर दुरुस्ती आवश्यक - मंजुरी बंद', en: 'Price correction required - approval blocked' },
+  flag_price_unverified: { mr: 'त्या दिवसाचा अधिकृत दर उपलब्ध नाही - तपासणी आवश्यक', en: 'Official price for collection date unavailable - review required' },
+  flag_price_mismatch: { mr: 'ऑफलाइन दर अधिकृत दराशी जुळत नाही - पेमेंट थांबवले', en: 'Recorded rate differs from the official price - payment held' },
   flag_chain_broken: { mr: 'ऑफलाइन साखळी तुटलेली - छेडछाडीची शक्यता', en: 'Offline chain broken - possible tampering' },
   loading: { mr: 'लोड होत आहे…', en: 'Loading…' },
   greeting: { mr: 'नमस्कार', en: 'Namaskar' },
@@ -131,7 +135,7 @@ const dict: Record<string, { mr: string; en: string }> = {
   flagged: { mr: 'थांबवलेली', en: 'Held' },
   refreshData: { mr: 'डेटा ताजा करा', en: 'Refresh data' },
   networkRequired: { mr: 'यासाठी नेटवर्क आवश्यक आहे', en: 'Network needed for this' },
-  slipReadableNote: { mr: 'हीच माहिती शेतकऱ्याला SMS ने जाते', en: 'This is exactly what the farmer receives by SMS' },
+  slipReadableNote: { mr: 'डेमो SMS नमुना. प्रत्यक्ष संदेश पाठवलेला नाही.', en: 'Demo SMS preview. No real text message is sent.' },
 };
 
 export function translate(lang: Lang, key: string): string {
