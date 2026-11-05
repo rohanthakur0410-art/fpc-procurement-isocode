@@ -92,13 +92,13 @@ export function createApp(q: Q) {
 
   // ---------- reference data ----------
   app.get('/api/centres', requireAuth, async (_, res) => {
-    res.json({ centres: await q.all('SELECT code, name, name_mr AS nameMr FROM centres ORDER BY code') });
+    res.json({ centres: await q.all('SELECT code, name, name_mr AS "nameMr" FROM centres ORDER BY code') });
   });
 
   app.get('/api/members', requireAuth, async (_, res) => {
     const rows = await q.all(
-      `SELECT id, farmer_id AS farmerId, name, name_mr AS nameMr, village, village_mr AS villageMr,
-              land_acres AS landAcres, bank_account_masked AS bankAccountMasked, ifsc, verified
+      `SELECT id, farmer_id AS "farmerId", name, name_mr AS "nameMr", village, village_mr AS "villageMr",
+              land_acres AS "landAcres", bank_account_masked AS "bankAccountMasked", ifsc, verified
        FROM members ORDER BY name`
     );
     res.json({ members: rows });
@@ -107,7 +107,7 @@ export function createApp(q: Q) {
   app.get('/api/prices', requireAuth, async (req, res) => {
     const date = typeof req.query.date === 'string' ? req.query.date : todayIST();
     const rows = await q.all(
-      'SELECT price_date AS priceDate, crop, grade, rate_rupees AS rateRupees, set_by AS setBy FROM prices WHERE price_date = ? ORDER BY crop, grade',
+      'SELECT price_date AS "priceDate", crop, grade, rate_rupees AS "rateRupees", set_by AS "setBy" FROM prices WHERE price_date = ? ORDER BY crop, grade',
       [date]
     );
     res.json({ date, prices: rows });
@@ -285,12 +285,12 @@ export function createApp(q: Q) {
     const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
     const rows = (
       await q.all<any>(
-        `SELECT p.id, p.slip_no AS slipNo, p.centre_code AS centreCode, p.crop, p.grade,
-                p.gross_tenths AS grossTenths, p.tare_tenths AS tareTenths, p.moisture_tenths AS moistureTenths,
-                p.net_tenths AS netTenths, COALESCE(pr.resolved_rate,p.rate_rupees) AS rateRupees, COALESCE(pr.resolved_amount,p.amount_paisa) AS amountPaisa,
-                p.rate_rupees AS originalRateRupees, p.amount_paisa AS originalAmountPaisa, pr.resolved_at AS priceResolvedAt, pr.resolved_by AS priceResolvedBy, pr.reason AS priceResolutionReason,
-                p.status, p.flags, p.device_ts AS deviceTs, p.synced_at AS syncedAt,
-                m.farmer_id AS farmerId, m.name AS farmerName, m.name_mr AS farmerNameMr, m.village, m.village_mr AS villageMr
+        `SELECT p.id, p.slip_no AS "slipNo", p.centre_code AS "centreCode", p.crop, p.grade,
+                p.gross_tenths AS "grossTenths", p.tare_tenths AS "tareTenths", p.moisture_tenths AS "moistureTenths",
+                p.net_tenths AS "netTenths", COALESCE(pr.resolved_rate,p.rate_rupees) AS "rateRupees", COALESCE(pr.resolved_amount,p.amount_paisa) AS "amountPaisa",
+                p.rate_rupees AS "originalRateRupees", p.amount_paisa AS "originalAmountPaisa", pr.resolved_at AS "priceResolvedAt", pr.resolved_by AS "priceResolvedBy", pr.reason AS "priceResolutionReason",
+                p.status, p.flags, p.device_ts AS "deviceTs", p.synced_at AS "syncedAt",
+                m.farmer_id AS "farmerId", m.name AS "farmerName", m.name_mr AS "farmerNameMr", m.village, m.village_mr AS "villageMr"
          FROM purchases p JOIN members m ON m.id = p.member_id LEFT JOIN price_resolutions pr ON pr.purchase_id=p.id
          ${where} ORDER BY p.device_ts DESC LIMIT 500`,
         params
@@ -391,21 +391,21 @@ export function createApp(q: Q) {
     const today = todayIST();
     const dayExpr = istDate('device_ts');
     const todayRows = await q.all(
-      `SELECT centre_code AS centre, COUNT(*) AS slips, COALESCE(SUM(net_tenths),0) AS netTenths, COALESCE(SUM(COALESCE((SELECT resolved_amount FROM price_resolutions pr WHERE pr.purchase_id=purchases.id),amount_paisa)),0) AS amountPaisa
+      `SELECT centre_code AS "centre", COUNT(*) AS "slips", COALESCE(SUM(net_tenths),0) AS "netTenths", COALESCE(SUM(COALESCE((SELECT resolved_amount FROM price_resolutions pr WHERE pr.purchase_id=purchases.id),amount_paisa)),0) AS "amountPaisa"
        FROM purchases WHERE ${dayExpr} = ? GROUP BY centre_code ORDER BY centre_code`,
       [today]
     );
     const byCrop = await q.all(
-      `SELECT crop, COALESCE(SUM(net_tenths),0) AS netTenths FROM purchases
+      `SELECT crop, COALESCE(SUM(net_tenths),0) AS "netTenths" FROM purchases
        WHERE ${dayExpr} = ? GROUP BY crop`,
       [today]
     );
     const pending = (await q.get<{ c: number; total: number }>(
-      `SELECT COUNT(*) AS c, COALESCE(SUM(COALESCE((SELECT resolved_amount FROM price_resolutions pr WHERE pr.purchase_id=purchases.id),amount_paisa)),0) AS total FROM purchases WHERE status = 'approved'`
+      `SELECT COUNT(*) AS "c", COALESCE(SUM(COALESCE((SELECT resolved_amount FROM price_resolutions pr WHERE pr.purchase_id=purchases.id),amount_paisa)),0) AS "total" FROM purchases WHERE status = 'approved'`
     ))!;
-    const flagged = (await q.get<{ c: number }>(`SELECT COUNT(*) AS c FROM purchases WHERE status = 'flagged'`))!;
+    const flagged = (await q.get<{ c: number }>(`SELECT COUNT(*) AS "c" FROM purchases WHERE status = 'flagged'`))!;
     const stock = await q.all(
-      `SELECT centre_code AS centre, crop, COALESCE(SUM(net_tenths),0) AS netTenths FROM purchases GROUP BY centre_code, crop ORDER BY centre_code, crop`
+      `SELECT centre_code AS "centre", crop, COALESCE(SUM(net_tenths),0) AS "netTenths" FROM purchases GROUP BY centre_code, crop ORDER BY centre_code, crop`
     );
     res.json({ date: today, today: todayRows, todayByCrop: byCrop, pendingPayment: pending, flaggedCount: flagged.c, stock });
   });
@@ -420,7 +420,7 @@ export function createApp(q: Q) {
     const now = new Date().toISOString();
     const placeholders = body.data.purchaseIds.map(() => '?').join(',');
     const rows = await q.all<{ id: number; member_id: number; amount_paisa: number }>(
-      `SELECT id, member_id, COALESCE((SELECT resolved_amount FROM price_resolutions pr WHERE pr.purchase_id=purchases.id),amount_paisa) AS amount_paisa FROM purchases WHERE id IN (${placeholders}) AND status = 'approved' AND EXISTS (SELECT 1 FROM members m WHERE m.id = purchases.member_id AND m.verified = 1) AND NOT EXISTS (SELECT 1 FROM payment_items i WHERE i.purchase_id = purchases.id)`,
+      `SELECT id, member_id, COALESCE((SELECT resolved_amount FROM price_resolutions pr WHERE pr.purchase_id=purchases.id),amount_paisa) AS "amount_paisa" FROM purchases WHERE id IN (${placeholders}) AND status = 'approved' AND EXISTS (SELECT 1 FROM members m WHERE m.id = purchases.member_id AND m.verified = 1) AND NOT EXISTS (SELECT 1 FROM payment_items i WHERE i.purchase_id = purchases.id)`,
       body.data.purchaseIds
     );
     if (rows.length === 0) {
@@ -445,9 +445,9 @@ export function createApp(q: Q) {
 
   app.get('/api/payment-runs', requireAuth, requireRole('office'), async (_, res) => {
     const runs = await q.all<any>(
-      'SELECT id, run_date AS runDate, item_count AS itemCount, total_paisa AS totalPaisa, status, created_at AS createdAt FROM payment_runs ORDER BY id DESC'
+      'SELECT id, run_date AS "runDate", item_count AS "itemCount", total_paisa AS "totalPaisa", status, created_at AS "createdAt" FROM payment_runs ORDER BY id DESC'
     );
-    const itemsSql = `SELECT p.slip_no AS slipNo, m.name AS farmerName, m.name_mr AS farmerNameMr, i.amount_paisa AS amountPaisa
+    const itemsSql = `SELECT p.slip_no AS "slipNo", m.name AS "farmerName", m.name_mr AS "farmerNameMr", i.amount_paisa AS "amountPaisa"
       FROM payment_items i JOIN purchases p ON p.id=i.purchase_id JOIN members m ON m.id=i.member_id WHERE i.run_id=? ORDER BY i.id`;
     res.json({
       runs: await Promise.all(runs.map(async (r: any) => ({ ...r, items: await q.all(itemsSql, [r.id]) }))),
@@ -471,7 +471,7 @@ export function createApp(q: Q) {
   });
 
   app.get('/api/payment-runs/:id/file', requireAuth, requireRole('office'), async (req, res) => {
-    const run = await q.get<{ id: number; runDate: string }>('SELECT id, run_date AS runDate FROM payment_runs WHERE id = ?', [
+    const run = await q.get<{ id: number; runDate: string }>('SELECT id, run_date AS "runDate" FROM payment_runs WHERE id = ?', [
       req.params.id,
     ]);
     if (!run) {
@@ -481,7 +481,7 @@ export function createApp(q: Q) {
     // Mock bank bulk-upload CSV. Assumption (labelled in the TDD): a generic
     // NEFT-style bulk file layout, since the brief does not name the bank.
     const items = await q.all<{ name: string; account: string; ifsc: string; amount: number; slip: string }>(
-      `SELECT m.name, m.bank_account_masked AS account, m.ifsc, i.amount_paisa AS amount, p.slip_no AS slip
+      `SELECT m.name, m.bank_account_masked AS "account", m.ifsc, i.amount_paisa AS "amount", p.slip_no AS "slip"
        FROM payment_items i JOIN members m ON m.id = i.member_id JOIN purchases p ON p.id = i.purchase_id
        WHERE i.run_id = ? ORDER BY i.id`,
       [req.params.id]
@@ -508,8 +508,8 @@ export function createApp(q: Q) {
     }
     const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
     const rows = await q.all(
-      `SELECT s.id, s.body, s.status, s.queued_at AS queuedAt, s.sent_at AS sentAt,
-              m.name AS farmerName, m.name_mr AS farmerNameMr, p.slip_no AS slipNo, p.centre_code AS centreCode
+      `SELECT s.id, s.body, s.status, s.queued_at AS "queuedAt", s.sent_at AS "sentAt",
+              m.name AS "farmerName", m.name_mr AS "farmerNameMr", p.slip_no AS "slipNo", p.centre_code AS "centreCode"
        FROM sms_outbox s JOIN members m ON m.id = s.member_id JOIN purchases p ON p.id = s.purchase_id
        ${where} ORDER BY s.id DESC LIMIT 200`,
       params
