@@ -12,7 +12,7 @@ const dict: Record<string, { mr: string; en: string }> = {
   demoGuideFarmer: { mr: 'नवीन नोंद उघडा. कमल शिंदे (F0002), सोयाबीन, ग्रेड A निवडा.', en: 'Open New entry. Choose Kamal Shinde (F0002), Soybean, Grade A.' },
   demoGuideWeights: { mr: 'एकूण वजन 850 kg, तारा वजन 20 kg, आर्द्रता 13.5% टाका.', en: 'Enter gross weight 850 kg, tare weight 20 kg, moisture 13.5%.' },
   demoGuideResult: { mr: 'तपासा दाबा: 817.6 kg आणि ₹39,653.60 दिसतील. नंतर नोंद सेव्ह करा.', en: 'Tap Review: expect 817.6 kg and ₹39,653.60. Then save the entry.' },
-  demoGuideLimits: { mr: 'SMS आणि बँक पेमेंट मॉक आहेत. फोटो AI सक्रिय नाही. डेमो नोंदी रीसेट होऊ शकतात.', en: 'SMS and bank payments are mocked. Photo AI is inactive. Demo entries may reset.' },
+  demoGuideLimits: { mr: 'SMS आणि बँक पेमेंट मॉक आहेत. फोटो AI सक्रिय आहे; वाचन आपोआप भरते, चुकीचे वाचन रोखते. डेमो नोंदी रीसेट होऊ शकतात.', en: 'SMS and bank payments are mocked. Photo AI is active; readings prefill and mismatches are blocked. Demo entries may reset.' },
   chooseRole: { mr: 'भूमिका निवडा', en: 'Choose a role' },
   chooseRoleNote: { mr: 'समीक्षक: खालील भूमिकेवर टॅप करा - नमुना खाते थेट उघडेल, पासवर्ड लागत नाही. कर्मचारी: खाली वापरकर्तानावाने साइन इन करा.', en: 'Reviewer: tap a role below - it opens a sample account directly, no password needed. Staff: sign in with a username below.' },
   staffSignIn: { mr: 'कर्मचारी साइन इन (वापरकर्तानाव + पासवर्ड)', en: 'Staff sign-in (username + password)' },
