@@ -153,8 +153,10 @@ ALTER TABLE purchases ADD COLUMN IF NOT EXISTS draft_id TEXT;
 ALTER TABLE purchases ADD COLUMN IF NOT EXISTS price_reviewed_at TEXT;
 `;
 
-export async function createNeonQ(connectionString: string): Promise<{ q: Q; pool: Pool }> {
-  const pool = new Pool({ connectionString });
+export async function createNeonQ(
+  conn: string | { host: string; user: string; password: string; database: string }
+): Promise<{ q: Q; pool: Pool }> {
+  const pool = typeof conn === 'string' ? new Pool({ connectionString: conn }) : new Pool(conn);
   await pool.query(PG_DDL);
   return { q: new NeonQ(pool), pool };
 }

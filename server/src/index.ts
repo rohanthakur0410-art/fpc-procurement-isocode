@@ -9,10 +9,19 @@ import { seedIfEmpty } from './seed.js';
 const port = Number(process.env.PORT || 3000);
 
 let q: Q;
-if (process.env.DATABASE_URL) {
+const pgParts =
+  process.env.PGHOST && process.env.PGPASSWORD
+    ? {
+        host: process.env.PGHOST,
+        user: process.env.PGUSER || 'neondb_owner',
+        database: process.env.PGDATABASE || 'neondb',
+        password: process.env.PGPASSWORD,
+      }
+    : null;
+if (process.env.DATABASE_URL || pgParts) {
   const { createNeonQ } = await import('./pg.js');
-  q = (await createNeonQ(process.env.DATABASE_URL)).q;
-  console.log('Using Neon Postgres (DATABASE_URL set)');
+  q = (await createNeonQ(process.env.DATABASE_URL ?? pgParts!)).q;
+  console.log('Using Neon Postgres (durable mode)');
 } else {
   const dbPath = process.env.DB_PATH || path.join(process.cwd(), 'server', 'data', 'app.db');
   q = new SqliteQ(openDatabase(dbPath));
