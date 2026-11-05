@@ -1,12 +1,31 @@
 // AI photo reading (Gemini vision) for scale and moisture-meter photos.
 // When no API key is configured or the model is unsure, the flow falls back to
 // fully manual entry - the brief's "when it is wrong" handling.
+//
+// Models are tried in order: a retired model (404) fails over to the next, and
+// a transient overload (503/429) is retried once before failing over. Verified
+// on the free tier 2026-11-05: gemini-2.0-flash retired, gemini-3.8-flash
+// frequently 503, gemini-3.1-flash-lite reads synthetic scale/meter photos
+// reliably. Override with GEMINI_MODELS (comma-separated) or GEMINI_MODEL.
 
 export interface AiReadResult {
   status: 'ok' | 'unsure' | 'unavailable';
   valueTenths?: number; // kg*10 for scale, percent*10 for moisture
   reason?: string;
 }
+
+const DEFAULT_MODELS = 'gemini-3.1-flash-lite,gemini-3.8-flash';
+
+function modelChain(): string[] {
+  const env = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL;
+  const list = (env && env.trim() ? env : DEFAULT_MODELS)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return list.length ? list : DEFAULT_MODELS.split(',');
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function readMeterPhoto(
   kind: 'scale' | 'moisture',
@@ -17,43 +36,58 @@ export async function readMeterPhoto(
   if (!key) {
     return { status: 'unavailable', reason: 'GEMINI_API_KEY is not set; manual entry only.' };
   }
-  const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
   const prompt =
     kind === 'scale'
       ? 'This is a photo of a digital weighing scale display at a farm produce collection centre in India. Read the weight shown in kilograms. Reply with JSON only: {"weightKg": <number>} or {"unsure": true} if the number is not clearly readable.'
       : 'This is a photo of a grain moisture meter display. Read the moisture percentage shown. Reply with JSON only: {"moisturePercent": <number>} or {"unsure": true} if the number is not clearly readable.';
 
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(15000),
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { inlineData: { mimeType: mimeType || 'image/jpeg', data: imageBase64 } },
-                { text: prompt },
+  let lastReason = 'AI service unavailable.';
+  for (const model of modelChain()) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(15000),
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    { inlineData: { mimeType: mimeType || 'image/jpeg', data: imageBase64 } },
+                    { text: prompt },
+                  ],
+                },
               ],
-            },
-          ],
-        }),
+              generationConfig: { maxOutputTokens: 200 },
+            }),
+          }
+        );
+        if (!res.ok) {
+          lastReason = `AI service returned ${res.status} (${model}).`;
+          if (res.status === 404) break; // retired/unknown model: next model, no retry
+          if ((res.status === 429 || res.status === 503) && attempt === 0) {
+            await sleep(800); // transient overload: one retry, then fail over
+            continue;
+          }
+          break;
+        }
+        const data = (await res.json()) as any;
+        const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        const cleaned = text.replace(/```json|```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed.unsure) return { status: 'unsure', reason: 'AI could not read the photo clearly.' };
+        const raw = kind === 'scale' ? Number(parsed.weightKg) : Number(parsed.moisturePercent);
+        if (!Number.isFinite(raw) || raw < (kind === 'moisture' ? 0 : 0.1) || raw > (kind === 'moisture' ? 40 : 100000)) {
+          return { status: 'unsure', reason: 'AI returned an implausible value.' };
+        }
+        return { status: 'ok', valueTenths: Math.round(raw * 10) };
+      } catch {
+        lastReason = `AI read failed (${model}); manual entry only.`;
+        break; // network/timeout/parse error: fail over to next model
       }
-    );
-    if (!res.ok) return { status: 'unsure', reason: `AI service returned ${res.status}` };
-    const data = (await res.json()) as any;
-    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    const cleaned = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-    if (parsed.unsure) return { status: 'unsure', reason: 'AI could not read the photo clearly.' };
-    const raw = kind === 'scale' ? Number(parsed.weightKg) : Number(parsed.moisturePercent);
-    if (!Number.isFinite(raw) || raw < (kind === 'moisture' ? 0 : 0.1) || raw > (kind === 'moisture' ? 40 : 100000)) {
-      return { status: 'unsure', reason: 'AI returned an implausible value.' };
     }
-    return { status: 'ok', valueTenths: Math.round(raw * 10) };
-  } catch {
-    return { status: 'unsure', reason: 'AI read failed; manual entry only.' };
   }
+  return { status: 'unsure', reason: lastReason };
 }

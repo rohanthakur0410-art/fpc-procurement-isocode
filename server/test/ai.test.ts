@@ -28,3 +28,40 @@ describe('vision adapter contract (mock provider, not live vision verification)'
     expect((await readMeterPhoto('scale','fake','image/jpeg')).status).toBe('unsure');
   });
 });
+
+describe('model chain failover (mock provider)', () => {
+  it('fails over from a retired model (404) to the next model', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'unit-test-not-a-key');
+    vi.stubEnv('GEMINI_MODELS', 'gemini-retired-x,gemini-working-y');
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      urls.push(url);
+      if (url.includes('gemini-retired-x')) return { ok: false, status: 404 };
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"weightKg":850}' }] } }] }) };
+    }));
+    expect(await readMeterPhoto('scale', 'fake', 'image/jpeg')).toEqual({ status: 'ok', valueTenths: 8500 });
+    expect(urls.length).toBe(2);
+    expect(urls[0]).toContain('gemini-retired-x');
+    expect(urls[1]).toContain('gemini-working-y');
+  });
+  it('retries a transient overload (503) once on the same model', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'unit-test-not-a-key');
+    vi.stubEnv('GEMINI_MODELS', 'gemini-busy-z');
+    let calls = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls++;
+      if (calls === 1) return { ok: false, status: 503 };
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"moisturePercent":13.5}' }] } }] }) };
+    }));
+    expect(await readMeterPhoto('moisture', 'fake', 'image/jpeg')).toEqual({ status: 'ok', valueTenths: 135 });
+    expect(calls).toBe(2);
+  });
+  it('returns unsure without inventing a reading when every model is overloaded', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'unit-test-not-a-key');
+    vi.stubEnv('GEMINI_MODELS', 'gemini-a,gemini-b');
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503 })));
+    const r = await readMeterPhoto('scale', 'fake', 'image/jpeg');
+    expect(r.status).toBe('unsure');
+    expect(r.valueTenths).toBeUndefined();
+  });
+});
