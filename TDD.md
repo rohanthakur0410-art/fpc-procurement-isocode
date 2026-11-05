@@ -43,7 +43,7 @@ per route), never only hidden in the UI.
 | **React + Vite PWA (service worker)** | Phone-first web app; the app shell and reference data work offline with no install step - important for low-end Android phones at centres. |
 | **IndexedDB outbox on the phone** | Durable local queue that survives app restarts, unlike in-memory state. |
 | **Shared calculation package (`shared/`)** | Phone and server run the *same* money/weight code, so the same accepted inputs produce identical phone and server amounts. |
-| **Integer tenths / integer paisa** | No floating point anywhere near money or weight. All weight is stored as tenths of a kg, all money as paisa. |
+| **Integer tenths / integer paisa** | All weight is stored as tenths of a kg, all money as paisa. The deduction and amount formulas run on these integers with one exact numerator and deterministic half-up rounding; floating point appears only in display formatting and in parsing regex-validated typed input, never in a stored value. |
 
 ## 4. The offline-first design (the hard part)
 
@@ -144,7 +144,9 @@ Two kinds, clearly separated:
 - Secrets (session secret, optional Gemini key) come from environment
   variables only; none are committed.
 
-## 9. Assumptions (labelled, all reversible)
+## 9. Assumptions (all labelled)
+
+The business-rule assumptions below are tunable by the office. Recorded history is not: original entries, hashes and price corrections are append-only and are never rewritten or deleted.
 
 1. **Fractional moisture deduction is pro-rata** (e.g. 13.5% → 1.5% deduction).
    The brief states the rule for whole points only.
@@ -263,7 +265,7 @@ payment CSV included that exact amount; the four-slip run total was Rs169,425.50
 and marking the mocked run paid set all four purchase statuses. Mobile review
 caught overflowing payment actions; the actions now wrap and remain reachable.
 Registry cached reload succeeded with actual browser network disconnection.
-A simulated503 on session lookup retained the cached operator rather than treating
+A simulated 503 on session lookup retained the cached operator rather than treating
 an unavailable server as expired credentials. These are controlled local checks,
 not evidence of production durability, real bank processing or live vision accuracy.
 
@@ -271,12 +273,12 @@ not evidence of production durability, real bank processing or live vision accur
 ### Unpriced collection draft check (private, 4 November)
 
 With cached prices removed and actual browser networking disabled, a collection
-850.0/20.0/13.5 was saved with817.6kg net and no price/amount. The draft survived
+850.0/20.0/13.5 was saved with 817.6 kg net and no price/amount. The draft survived
 a full offline reload. After reconnecting, the collection-date central price was
 shown for explicit review, original measurements stayed read-only, and conversion
-synced once with Rs39,653.60. Draft removal and outbox write are atomic.52 tests
+synced once with Rs39,653.60. Draft removal and outbox write are atomic. 52 tests
 include conversion-audit persistence and rejection of missing review metadata;
-mocked vision remains8 of those tests. Same-timestamp repeat-farmer and parallel
+mocked vision remains 8 of those tests. Same-timestamp repeat-farmer and parallel
 identical-sync regressions also pass. This does not establish real vision accuracy,
 trusted time, or durable backup of a device that is lost.
 
