@@ -124,3 +124,69 @@ CREATE TABLE IF NOT EXISTS sms_outbox (
   if(!columns.some(c=>c.name==='draft_id')) db.exec('ALTER TABLE purchases ADD COLUMN draft_id TEXT');
   if(!columns.some(c=>c.name==='price_reviewed_at')) db.exec('ALTER TABLE purchases ADD COLUMN price_reviewed_at TEXT');
 }
+
+// ---------- driver-neutral async query surface (SQLite locally, Neon in hosted demo) ----------
+export interface RunResult {
+  changes: number;
+}
+
+export interface Q {
+  dialect: 'sqlite' | 'pg';
+  run(sql: string, params?: unknown[]): Promise<RunResult>;
+  get<T = any>(sql: string, params?: unknown[]): Promise<T | undefined>;
+  all<T = any>(sql: string, params?: unknown[]): Promise<T[]>;
+  tx<T>(fn: (q: Q) => Promise<T>): Promise<T>;
+}
+
+// Convert SQLite-style ? placeholders to Postgres $n, skipping '?' inside
+// single-quoted string literals.
+export function toPg(sql: string): string {
+  let out = '';
+  let n = 0;
+  let inStr = false;
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i];
+    if (inStr) {
+      out += c;
+      if (c === "'") {
+        if (sql[i + 1] === "'") {
+          out += sql[++i];
+        } else inStr = false;
+      }
+    } else if (c === "'") {
+      inStr = true;
+      out += c;
+    } else if (c === '?') {
+      out += '$' + ++n;
+    } else out += c;
+  }
+  return out;
+}
+
+export class SqliteQ implements Q {
+  dialect: 'sqlite' = 'sqlite';
+  constructor(private db: Database.Database) {}
+  async run(sql: string, params: unknown[] = []): Promise<RunResult> {
+    const info = this.db.prepare(sql).run(...(params as any[]));
+    return { changes: info.changes };
+  }
+  async get<T = any>(sql: string, params: unknown[] = []): Promise<T | undefined> {
+    return this.db.prepare(sql).get(...(params as any[])) as T | undefined;
+  }
+  async all<T = any>(sql: string, params: unknown[] = []): Promise<T[]> {
+    return this.db.prepare(sql).all(...(params as any[])) as T[];
+  }
+  // Manual BEGIN/COMMIT: fn's awaits resolve via microtasks only (no I/O), so no
+  // other request interleaves between BEGIN and COMMIT on the event loop.
+  async tx<T>(fn: (q: Q) => Promise<T>): Promise<T> {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const r = await fn(this);
+      this.db.exec('COMMIT');
+      return r;
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+}

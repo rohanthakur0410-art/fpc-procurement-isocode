@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import { buildEntry, GENESIS } from '@app/shared';
-import { openDatabase, type DB } from '../src/db.js';
+import { openDatabase, SqliteQ, type DB, type Q } from '../src/db.js';
 import { createApp } from '../src/app.js';
 import { seedIfEmpty } from '../src/seed.js';
 
 let db: DB;
+let q: Q;
 let base: string;
 let server: ReturnType<ReturnType<typeof createApp>['listen']>;
 let operatorCookie = '';
@@ -34,8 +35,9 @@ async function makeEntry(uuid: string, seq: number, prevHash: string, overrides:
 
 beforeAll(async () => {
   db = openDatabase(':memory:');
-  await seedIfEmpty(db);
-  const app = createApp(db);
+  q = new SqliteQ(db);
+  await seedIfEmpty(q);
+  const app = createApp(q);
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => resolve());
   });

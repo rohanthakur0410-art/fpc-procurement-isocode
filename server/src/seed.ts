@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { buildEntry, netTenths, amountPaisa, GENESIS, fmtKg, fmtINR, fmtMoisture } from '@app/shared';
-import type { DB } from './db.js';
+import type { Q } from './db.js';
 
 export function todayIST(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
@@ -37,23 +37,29 @@ export function smsBody(
   ].join('\n');
 }
 
-export async function seedIfEmpty(db: DB): Promise<void> {
-  const has = db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number };
+export async function seedIfEmpty(q: Q): Promise<void> {
+  const has = (await q.get<{ c: number }>('SELECT COUNT(*) AS c FROM users'))!;
   if (has.c > 0) return;
 
-  const insCentre = db.prepare('INSERT INTO centres (code, name, name_mr, slip_counter) VALUES (?,?,?,?)');
-  insCentre.run('C03', 'Chakur Centre', 'चाकूर केंद्र', 10240);
-  insCentre.run('C07', 'Harngul Centre', 'हरंगुळ केंद्र', 24519);
-  insCentre.run('C12', 'Aurad Centre', 'औराद केंद्र', 8876);
+  const insCentre = (code: string, name: string, nameMr: string, counter: number) =>
+    q.run('INSERT INTO centres (code, name, name_mr, slip_counter) VALUES (?,?,?,?)', [code, name, nameMr, counter]);
+  await insCentre('C03', 'Chakur Centre', 'चाकूर केंद्र', 10240);
+  await insCentre('C07', 'Harngul Centre', 'हरंगुळ केंद्र', 24519);
+  await insCentre('C12', 'Aurad Centre', 'औराद केंद्र', 8876);
 
   const hash = bcrypt.hashSync('demo1234', 10);
-  const insUser = db.prepare('INSERT INTO users (username, password_hash, role, name, centre_code) VALUES (?,?,?,?,?)');
-  insUser.run('operator', hash, 'operator', 'Santosh Patil', 'C07');
-  insUser.run('office', hash, 'office', 'Priya Deshmukh', null);
+  const insUser = (username: string, role: string, name: string, centreCode: string | null) =>
+    q.run('INSERT INTO users (username, password_hash, role, name, centre_code) VALUES (?,?,?,?,?)', [
+      username, hash, role, name, centreCode,
+    ]);
+  await insUser('operator', 'operator', 'Santosh Patil', 'C07');
+  await insUser('office', 'office', 'Priya Deshmukh', null);
 
-  const insMember = db.prepare(
-    'INSERT INTO members (farmer_id, name, name_mr, village, village_mr, land_acres, bank_account_masked, ifsc, verified) VALUES (?,?,?,?,?,?,?,?,1)'
-  );
+  const insMember = (m: Array<string | number>, i: number) =>
+    q.run(
+      'INSERT INTO members (farmer_id, name, name_mr, village, village_mr, land_acres, bank_account_masked, ifsc, verified) VALUES (?,?,?,?,?,?,?,?,1)',
+      [m[0], m[1], m[2], m[3], m[4], m[5], `XXXXXX${String(4521 + i * 137).slice(-4)}`, `DEMO0${String(10000 + i * 111).slice(-5)}`]
+    );
   const members: Array<[string, string, string, string, string, number]> = [
     ['F0001', 'Sunil Jadhav', 'सुनील जाधव', 'Harngul', 'हरंगुळ', 4.5],
     ['F0002', 'Kamal Shinde', 'कमल शिंदे', 'Harngul', 'हरंगुळ', 3.0],
@@ -66,30 +72,23 @@ export async function seedIfEmpty(db: DB): Promise<void> {
     ['F0009', 'Balu Salunke', 'बाळू साळुंखे', 'Harngul', 'हरंगुळ', 7.5],
     ['F0010', 'Dagdu More', 'दगडू मोरे', 'Aurad', 'औराद', 1.5],
   ];
-  members.forEach((m, i) =>
-    insMember.run(m[0], m[1], m[2], m[3], m[4], m[5], `XXXXXX${String(4521 + i * 137).slice(-4)}`, `DEMO0${String(10000 + i * 111).slice(-5)}`)
-  );
+  for (let i = 0; i < members.length; i++) await insMember(members[i], i);
 
-  const insPrice = db.prepare('INSERT INTO prices (price_date, crop, grade, rate_rupees, set_by, created_at) VALUES (?,?,?,?,?,?)');
+  const insPrice = (date: string, crop: string, grade: string, rate: number, setBy: string, createdAt: string) =>
+    q.run('INSERT INTO prices (price_date, crop, grade, rate_rupees, set_by, created_at) VALUES (?,?,?,?,?,?)', [
+      date, crop, grade, rate, setBy, createdAt,
+    ]);
   const today = todayIST();
   const now = new Date().toISOString();
   // Grade B rates are an assumption (the brief names grades but lists no B rates).
-  insPrice.run(today, 'soybean', 'A', 4850, 'office', now);
-  insPrice.run(today, 'soybean', 'B', 4650, 'office', now);
-  insPrice.run(today, 'tur', 'A', 7200, 'office', now);
-  insPrice.run(today, 'tur', 'B', 6900, 'office', now);
+  await insPrice(today, 'soybean', 'A', 4850, 'office', now);
+  await insPrice(today, 'soybean', 'B', 4650, 'office', now);
+  await insPrice(today, 'tur', 'A', 7200, 'office', now);
+  await insPrice(today, 'tur', 'B', 6900, 'office', now);
 
   // The three sample slips from the brief, as already-synced history from this morning.
-  const insPurchase = db.prepare(`
-    INSERT INTO purchases (client_uuid, device_id, seq, prev_hash, entry_hash, centre_code, member_id,
-      crop, grade, gross_tenths, tare_tenths, moisture_tenths, net_tenths, rate_rupees, amount_paisa,
-      status, flags, photo_name, device_ts, synced_at, slip_no)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-  const insSms = db.prepare(
-    'INSERT INTO sms_outbox (purchase_id, member_id, body, status, queued_at, sent_at) VALUES (?,?,?,?,?,?)'
-  );
-  const memberIdByFarmer = (fid: string) =>
-    (db.prepare('SELECT id FROM members WHERE farmer_id = ?').get(fid) as { id: number }).id;
+  const memberIdByFarmer = async (fid: string) =>
+    ((await q.get<{ id: number }>('SELECT id FROM members WHERE farmer_id = ?', [fid]))!).id;
 
   const samples: Array<{
     slip: string; farmer: string; centre: string; crop: 'soybean' | 'tur';
@@ -113,19 +112,28 @@ export async function seedIfEmpty(db: DB): Promise<void> {
     const deviceTs = istIso(s.time);
     const entry = await buildEntry(`seed-${i + 1}`, i + 1, prevHash, deviceTs, payload);
     prevHash = entry.hash;
-    const memberId = memberIdByFarmer(s.farmer);
-    const info = insPurchase.run(
-      entry.uuid, 'seed-device', entry.seq, entry.prevHash, entry.hash, s.centre, memberId,
-      s.crop, 'A', s.gross, s.tare, s.moisture, net, s.rate, amount,
-      'approved', '[]', null, deviceTs, deviceTs, s.slip
-    );
-    const member = db.prepare('SELECT name_mr FROM members WHERE id = ?').get(memberId) as { name_mr: string };
+    const memberId = await memberIdByFarmer(s.farmer);
+    const inserted = (await q.get<{ id: number }>(
+      `INSERT INTO purchases (client_uuid, device_id, seq, prev_hash, entry_hash, centre_code, member_id,
+        crop, grade, gross_tenths, tare_tenths, moisture_tenths, net_tenths, rate_rupees, amount_paisa,
+        status, flags, photo_name, device_ts, synced_at, slip_no)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+      [
+        entry.uuid, 'seed-device', entry.seq, entry.prevHash, entry.hash, s.centre, memberId,
+        s.crop, 'A', s.gross, s.tare, s.moisture, net, s.rate, amount,
+        'approved', '[]', null, deviceTs, deviceTs, s.slip,
+      ]
+    ))!;
+    const member = (await q.get<{ name_mr: string }>('SELECT name_mr FROM members WHERE id = ?', [memberId]))!;
     const [y, mo, d] = today.split('-');
-    insSms.run(
-      info.lastInsertRowid, memberId,
-      smsBody(s.slip, member.name_mr, { crop: s.crop, grade: 'A', grossTenths: s.gross, tareTenths: s.tare, moistureTenths: s.moisture, netTenths: net, rateRupees: s.rate, amountPaisa: amount }, s.centre, `${d}/${mo}/${y}`),
-      'sent', deviceTs, deviceTs
+    await q.run(
+      'INSERT INTO sms_outbox (purchase_id, member_id, body, status, queued_at, sent_at) VALUES (?,?,?,?,?,?)',
+      [
+        inserted.id, memberId,
+        smsBody(s.slip, member.name_mr, { crop: s.crop, grade: 'A', grossTenths: s.gross, tareTenths: s.tare, moistureTenths: s.moisture, netTenths: net, rateRupees: s.rate, amountPaisa: amount }, s.centre, `${d}/${mo}/${y}`),
+        'sent', deviceTs, deviceTs,
+      ]
     );
   }
-  db.prepare('INSERT INTO device_chains (device_id, last_seq, last_hash) VALUES (?,?,?)').run('seed-device', samples.length, prevHash);
+  await q.run('INSERT INTO device_chains (device_id, last_seq, last_hash) VALUES (?,?,?)', ['seed-device', samples.length, prevHash]);
 }
