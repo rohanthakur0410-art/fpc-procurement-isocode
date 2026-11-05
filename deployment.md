@@ -45,5 +45,10 @@ submission are separate review steps; a live demo is not proof of production rea
 - `GEMINI_API_KEY` - optional; intended to enable AI reading of scale/moisture-meter photos. Without it the app falls back to manual entry (the brief's "when it is wrong" path)
 - `GEMINI_MODEL` - optional model override (default `gemini-2.0-flash`)
 
-Photo AI: server/src/ai.ts tries a model chain (default gemini-3.1-flash-lite, then gemini-3.8-flash; override with GEMINI_MODELS). gemini-2.0-flash is retired; gemini-3.8-flash is often 503 on the free tier. Verified 2026-11-05 only against synthetic scale/meter images on the saved free key (6/6 correct on gemini-3.1-flash-lite); real-photo reliability is unproven and no GEMINI_API_KEY is set on this service, so the live demo stays manual-entry. No AI-provider key is needed for the tested manual workflow. SMS and the bank are mocked inside
-the app, as the brief instructs.
+Photo AI: server/src/ai.ts tries a model chain (default gemini-3.1-flash-lite, then gemini-3.8-flash; override with GEMINI_MODELS). gemini-2.0-flash is retired; gemini-3.8-flash is often 503 on the free tier.
+
+Photo AI status 2026-11-06 (IST): ENABLED on this service with the owner's free Google AI Studio key (Unpaid tier: Google may review submitted photos to improve its products; no billing account exists, so charges are impossible). Verification record:
+- Real-photo harness test (same prompts/chain/preprocessing as production): weighbridge indicator photo (public Wikimedia Commons image, CC BY-SA 4.0, reading 100 kg) and a wood moisture-meter photo (CC BY-SA 4.0, reading 14.0%) - 4/4 correct on gemini-3.1-flash-lite, ~1-2s per read.
+- Live browser verification on this service: both photos uploaded through the real entry UI; readings (100.0 kg, 14.0%) appeared beside each photo and prefilled only after operator confirm; typing a mismatching value disabled save with the mismatch warning; review computed net 88.2 kg from gross 100.0 - tare 10.0 with the 2%-over-12% moisture rule. Test entry was discarded without saving; no demo data was changed.
+- Scope honesty: verified on those two display photos only, not arbitrary photos. Unclear photos fall back to manual entry by design, and a typed value that differs from the AI reading always blocks saving (EntryWizard.tsx).
+SMS and the bank are mocked inside the app, as the brief instructs.
