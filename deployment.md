@@ -45,5 +45,5 @@ submission are separate review steps; a live demo is not proof of production rea
 - `GEMINI_API_KEY` - optional; intended to enable AI reading of scale/moisture-meter photos. Without it the app falls back to manual entry (the brief's "when it is wrong" path)
 - `GEMINI_MODEL` - optional model override (default `gemini-2.0-flash`)
 
-Photo AI remains unverified with a live authorized key; do not infer availability or a free billing tier from a saved key. No AI-provider key is needed for the tested manual workflow. SMS and the bank are mocked inside
+Photo AI: server/src/ai.ts tries a model chain (default gemini-3.1-flash-lite, then gemini-3.8-flash; override with GEMINI_MODELS). gemini-2.0-flash is retired; gemini-3.8-flash is often 503 on the free tier. Verified 2026-11-05 only against synthetic scale/meter images on the saved free key (6/6 correct on gemini-3.1-flash-lite); real-photo reliability is unproven and no GEMINI_API_KEY is set on this service, so the live demo stays manual-entry. No AI-provider key is needed for the tested manual workflow. SMS and the bank are mocked inside
 the app, as the brief instructs.
