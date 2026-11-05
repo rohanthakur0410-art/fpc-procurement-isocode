@@ -160,7 +160,58 @@ The business-rule assumptions below are tunable by the office. Recorded history 
 6. One operator session per centre device is assumed; multi-operator devices
    would key the hash chain per operator login instead.
 
-## 10. Testing
+## 10. Data model (the database schema)
+
+Nine tables in one SQLite file, created by `server/src/db.ts`. Column types
+are SQLite `TEXT`/`INTEGER`; the rules that matter live in the service layer
+and §5's money conventions.
+
+- **centres** - one row per collection centre: `code` (primary key), English
+  and Marathi names, and `slip_counter`, the per-centre sequence that slip
+  numbers (`C07-24523`) are allocated from inside the approval transaction.
+- **users** - operator/office logins: `username`, `password_hash`, `role`
+  (`CHECK(operator|office)`), optional `centre_code` scoping an operator to
+  one centre.
+- **members** - the farmer registry: `farmer_id` (unique, human-facing),
+  bilingual name and village, land size, masked bank account + IFSC, and a
+  `verified` flag. Bank details exist masked only.
+- **prices** - central daily rates: `UNIQUE(price_date, crop, grade)`, the
+  rate as whole rupees per quintal, and a `set_by` audit column.
+- **purchases** - one row per collection entry, the core table:
+  `client_uuid` (unique; the idempotency key from §4), hash-chain fields
+  (`device_id`, `seq`, `prev_hash`, `entry_hash`), foreign keys to centre
+  and member, weights as integer tenths (`gross/tare/moisture/net_tenths`),
+  `rate_rupees` and `amount_paisa` as integers (§5), `status`
+  (`CHECK(approved|flagged|paid)`), a JSON `flags` array, optional
+  `photo_name`, `device_ts`/`synced_at` timestamps, `draft_id` and
+  `price_reviewed_at` for the unpriced-draft flow, and `slip_no` (unique,
+  allocated at approval). Indexed on `(centre_code, device_ts)` and
+  `(member_id, device_ts)` for the two main read paths.
+- **device_chains** - per-device sync cursors (`last_seq`, `last_hash`) used
+  to verify chain continuity on sync (§4).
+- **payment_runs / payment_items** - a run records `run_date`, `item_count`,
+  `total_paisa`, `created_by` and `status`
+  (`CHECK(file_generated|paid)`); each item links a run to a purchase and
+  member with the amount frozen at file generation.
+- **price_resolutions** - append-only audit for price corrections: one row
+  per corrected purchase carrying the original and resolved rate + amount,
+  who resolved it, when, and the mandatory reason. The purchase row keeps
+  its final values; this table is the history.
+- **sms_outbox** - mock SMS per approved purchase: body, `status`
+  (`queued|sent`), timestamps. The mock sender flips rows to `sent`.
+
+Design rules worth noticing:
+
+1. Money is `INTEGER` paisa and weights are `INTEGER` tenths of a kg; no
+   floating point anywhere in the money path (§5).
+2. Correction history is append-only (`price_resolutions`); correction rows
+   are never updated or deleted.
+3. Slip numbers and payment amounts are allocated inside transactions, so a
+   crash cannot leave half a slip or half a payment run.
+4. Single-tenant demo: one FPC, two centres. A multi-FPC version would add
+   `fpc_id` to every table.
+
+## 11. Testing
 
 55 automated tests (`npx vitest run`):
 
@@ -182,7 +233,7 @@ the network disabled (app loads from service worker cache, farmer list
 available, entry saved offline, syncs later with an official slip number and
 identical amounts), with a mobile-width visual check of each staged entry screen and review. This verifies one controlled desktop-Chrome run, not all Android devices, storage eviction, multi-day outage or multi-tab concurrency.
 
-## 11. What is mocked vs real
+## 12. What is mocked vs real
 
 | Real | Mocked (as the brief instructs) |
 | --- | --- |
@@ -197,7 +248,7 @@ The endpoint and fallback are coded, but the vision path has not been exercised
 against the live model. Configuring an API key alone does not establish
 operation; it stays labelled unverified until a live run confirms it.
 
-## 12. UI and design decisions
+## 13. UI and design decisions
 
 The interface is designed as a **collection-centre day book**, not a generic
 card app, because the operator's mental model is the paper register it
@@ -226,7 +277,7 @@ replaces.
   and pending-upload counts are always visible; icons are consistent SVG,
   no emoji.
 
-## 13. What was cut, and what next
+## 14. What was cut, and what next
 
 Cut deliberately (scope discipline per the brief):
 
@@ -250,7 +301,7 @@ Next, with more time: a printed thermal-slip fallback for centres with no
 farmer phones, per-operator hash chains, photo reading validation against a
 labelled sample set, and a marathi voice readout of the slip.
 
-## 14. How a reviewer runs it
+## 15. How a reviewer runs it
 
 See `deployment.md`: `npm install && npm run dev`, log in as
 `operator`/`demo1234` or `office`/`demo1234`. The database seeds itself with
