@@ -234,6 +234,9 @@ Cut deliberately (scope discipline per the brief):
   phone app light, with manual entry as the primary path.
 - Multi-operator keying of the hash chain on a shared device (single
   operator session assumed, see §9).
+- Centre stock is shown on the office dashboard as a per-centre aggregate from
+  synced purchases; truck dispatch with weight-loss tracking is optional depth
+  beyond the core slice and is not built.
 - Live deployment is optional. The app runs as one Node process and deploys
   to a free Render service unchanged, with one honest limit: on the free tier
   the service sleeps after about 15 idle minutes (roughly a one-minute
