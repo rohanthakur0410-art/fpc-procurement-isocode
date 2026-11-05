@@ -276,3 +276,21 @@ include conversion-audit persistence and rejection of missing review metadata;
 mocked vision remains8 of those tests. Same-timestamp repeat-farmer and parallel
 identical-sync regressions also pass. This does not establish real vision accuracy,
 trusted time, or durable backup of a device that is lost.
+
+### Held-price correction check (private, 5 November)
+
+Verified end to end over HTTP against a fresh seeded database. An entry synced
+with a rate above the day's central price was stored flagged `price_mismatch`;
+an identical retry returned `duplicate` with the original hold flags. An
+operator-role correction attempt was rejected (403) and simple approval was
+blocked (409 `price_correction_required`). The office preview showed the
+original ₹4,900/₹24,010.00 beside the collection-date central ₹4,850/₹23,765.00.
+A stale expected rate (409), a too-short reason (400), a repeated correction
+(409) and a correction after approval (409) were all rejected. The accepted
+correction kept the original payload, rate, amount and hash unchanged, wrote an
+append-only audit row (old/new rate and amount, reviewer, time, reason), queued
+a labelled mock Marathi correction SMS and left the purchase held until a
+separate approval (200). The generated payment CSV then contained the corrected
+₹23,765.00 for that slip. 55 tests pass; mocked vision remains 8 of those. This
+does not establish trusted time, real bank processing or reversal after a
+generated payment file.
