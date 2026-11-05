@@ -32,12 +32,10 @@ export default function Login({ onLogin }: { onLogin: (u: SessionUser) => void }
     <Shell>
       <div className="login-cover">
         <div className="lc-band">
-          <h1>{t('signIn')}</h1>
-          <p className="sub">{t('tagline')}</p>
+          <h1>{t('chooseRole')}</h1>
+          <p className="sub">{t('chooseRoleNote')}</p>
         </div>
       <section className="demo-access" aria-label={t('tryDemo')}>
-        <h2>{t('tryDemo')}</h2>
-        <p className="sub">{t('demoAccessNote')}</p>
         <button className="demo-role" type="button" disabled={busy} onClick={() => void signIn('operator', 'demo1234')}>
           <strong>{t('demoCollection')}</strong><span>{t('demoCollectionNote')}</span>
         </button>
@@ -48,7 +46,7 @@ export default function Login({ onLogin }: { onLogin: (u: SessionUser) => void }
         {err && <div className="callout red" role="alert">{err}</div>}
       </section>
       <details className="manual-access">
-      <summary>{t('manualSignIn')}</summary>
+      <summary>{t('staffSignIn')}</summary>
       <form onSubmit={submit}>
         <div className="field">
           <label>{t('username')}</label>
