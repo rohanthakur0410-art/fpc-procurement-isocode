@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS payment_runs (
 CREATE TABLE IF NOT EXISTS payment_items (
   id INTEGER PRIMARY KEY,
   run_id INTEGER NOT NULL REFERENCES payment_runs(id),
-  purchase_id INTEGER NOT NULL REFERENCES purchases(id),
+  purchase_id INTEGER NOT NULL UNIQUE REFERENCES purchases(id),
   member_id INTEGER NOT NULL REFERENCES members(id),
   amount_paisa INTEGER NOT NULL
 );
@@ -123,6 +123,12 @@ CREATE TABLE IF NOT EXISTS sms_outbox (
   const columns = db.prepare('PRAGMA table_info(purchases)').all() as {name:string}[];
   if(!columns.some(c=>c.name==='draft_id')) db.exec('ALTER TABLE purchases ADD COLUMN draft_id TEXT');
   if(!columns.some(c=>c.name==='price_reviewed_at')) db.exec('ALTER TABLE purchases ADD COLUMN price_reviewed_at TEXT');
+}
+
+// Postgres unique-constraint violation (SQLSTATE 23505). Used to turn lost
+// idempotency races into the correct domain response instead of a 500.
+export function isUniqueViolation(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { code?: string }).code === '23505';
 }
 
 // ---------- driver-neutral async query surface (SQLite locally, Neon in hosted demo) ----------

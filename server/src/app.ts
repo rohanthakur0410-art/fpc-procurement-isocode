@@ -8,7 +8,7 @@ import {
   netTenths, amountPaisa, verifyChain, GENESIS, fmtKg, fmtINR,
   type SyncEntry, type SyncResultItem, type SessionUser,
 } from '@app/shared';
-import type { Q } from './db.js';
+import { isUniqueViolation, type Q } from './db.js';
 import { signSession, setSessionCookie, clearSessionCookie, requireAuth, requireRole, type AuthedRequest } from './auth.js';
 import { computeFlags } from './flags.js';
 import { readMeterPhoto } from './ai.js';
@@ -52,6 +52,11 @@ export function createApp(q: Q) {
       ? `to_char(${col}::timestamptz AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD')`
       : `date(${col}, '+5 hours', '+30 minutes')`;
 
+  // Express 4 does not forward async handler rejections; wrap every async
+  // route so a database error becomes a 500 response, never a process crash.
+  const ah = (fn: (req: any, res: any, next: any) => Promise<unknown>) =>
+    (req: any, res: any, next: any) => void Promise.resolve(fn(req, res, next)).catch(next);
+
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '8mb' }));
@@ -63,7 +68,7 @@ export function createApp(q: Q) {
   });
 
   // ---------- auth ----------
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', ah(async (req, res) => {
     const body = z.object({ username: z.string().min(1), password: z.string().min(1) }).safeParse(req.body);
     if (!body.success) {
       res.status(400).json({ error: 'invalid_body' });
@@ -79,7 +84,7 @@ export function createApp(q: Q) {
     const user: SessionUser = { username: row.username, role: row.role, name: row.name, centreCode: row.centre_code };
     setSessionCookie(res, signSession(user));
     res.json({ user });
-  });
+  }));
 
   app.post('/api/auth/logout', (_, res) => {
     clearSessionCookie(res);
@@ -91,29 +96,29 @@ export function createApp(q: Q) {
   });
 
   // ---------- reference data ----------
-  app.get('/api/centres', requireAuth, async (_, res) => {
+  app.get('/api/centres', requireAuth, ah(async (_, res) => {
     res.json({ centres: await q.all('SELECT code, name, name_mr AS "nameMr" FROM centres ORDER BY code') });
-  });
+  }));
 
-  app.get('/api/members', requireAuth, async (_, res) => {
+  app.get('/api/members', requireAuth, ah(async (_, res) => {
     const rows = await q.all(
       `SELECT id, farmer_id AS "farmerId", name, name_mr AS "nameMr", village, village_mr AS "villageMr",
               land_acres AS "landAcres", bank_account_masked AS "bankAccountMasked", ifsc, verified
        FROM members ORDER BY name`
     );
     res.json({ members: rows });
-  });
+  }));
 
-  app.get('/api/prices', requireAuth, async (req, res) => {
+  app.get('/api/prices', requireAuth, ah(async (req, res) => {
     const date = typeof req.query.date === 'string' ? req.query.date : todayIST();
     const rows = await q.all(
       'SELECT price_date AS "priceDate", crop, grade, rate_rupees AS "rateRupees", set_by AS "setBy" FROM prices WHERE price_date = ? ORDER BY crop, grade',
       [date]
     );
     res.json({ date, prices: rows });
-  });
+  }));
 
-  app.post('/api/prices', requireAuth, requireRole('office'), async (req: AuthedRequest, res) => {
+  app.post('/api/prices', requireAuth, requireRole('office'), ah(async (req: AuthedRequest, res) => {
     const body = z
       .object({
         priceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -133,10 +138,10 @@ export function createApp(q: Q) {
       [b.priceDate, b.crop, b.grade, b.rateRupees, req.user!.username, new Date().toISOString()]
     );
     res.json({ ok: true });
-  });
+  }));
 
   // ---------- offline sync (the hard part) ----------
-  app.post('/api/sync', requireAuth, requireRole('operator'), async (req: AuthedRequest, res) => {
+  app.post('/api/sync', requireAuth, requireRole('operator'), ah(async (req: AuthedRequest, res) => {
     const parsed = syncBodySchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'invalid_body', detail: parsed.error.issues[0]?.message });
@@ -172,7 +177,14 @@ export function createApp(q: Q) {
     const [y, mo, d] = todayIST().split('-');
     const ddmmyyyy = `${d}/${mo}/${y}`;
 
-    await q.tx(async (t) => {
+    // A concurrent same-uuid batch can win the INSERT race on Postgres: its
+    // commit is invisible to our existence check. Roll back and replay once
+    // or twice; the replay sees every entry as duplicate/stored. Rolls back
+    // slip-counter increments too, so no counter gaps.
+    let syncAttempts = 0;
+    for (;;) {
+      try {
+        await q.tx(async (t) => {
       // Hashing awaited above. Another request may have committed meanwhile.
       const latest = await t.get<{ last_hash: string }>('SELECT last_hash FROM device_chains WHERE device_id = ?', [deviceId]);
       if ((latest?.last_hash ?? GENESIS) !== startHash) chainBroken = true;
@@ -255,13 +267,23 @@ export function createApp(q: Q) {
           [deviceId, last.seq, last.hash]
         );
       }
-    });
+        });
+        break;
+      } catch (e) {
+        if (isUniqueViolation(e) && ++syncAttempts < 3) {
+          results.length = 0;
+          chainBroken = !chainCheck.ok || !seqOk;
+          continue;
+        }
+        throw e;
+      }
+    }
 
     res.json({ results, chainOk: !chainBroken });
-  });
+  }));
 
   // ---------- purchases / review ----------
-  app.get('/api/purchases', requireAuth, async (req: AuthedRequest, res) => {
+  app.get('/api/purchases', requireAuth, ah(async (req: AuthedRequest, res) => {
     const clauses: string[] = [];
     const params: unknown[] = [];
     if (req.user!.role === 'operator') {
@@ -297,9 +319,9 @@ export function createApp(q: Q) {
       )
     ).map((r: any) => ({ ...r, flags: JSON.parse(r.flags || '[]') }));
     res.json({ purchases: rows });
-  });
+  }));
 
-  app.post('/api/purchases/:id/review', requireAuth, requireRole('office'), async (req: AuthedRequest, res) => {
+  app.post('/api/purchases/:id/review', requireAuth, requireRole('office'), ah(async (req: AuthedRequest, res) => {
     const body = z.object({ action: z.enum(['approve']) }).safeParse(req.body);
     if (!body.success) {
       res.status(400).json({ error: 'invalid_body' });
@@ -320,10 +342,10 @@ export function createApp(q: Q) {
       return;
     }
     res.json({ ok: true });
-  });
+  }));
 
   // An append-only correction never rewrites the original device payload/hash.
-  app.get('/api/purchases/:id/price-resolution', requireAuth, requireRole('office'), async (req, res) => {
+  app.get('/api/purchases/:id/price-resolution', requireAuth, requireRole('office'), ah(async (req, res) => {
     const p = await q.get<any>('SELECT * FROM purchases WHERE id=?', [req.params.id]);
     if (!p) {
       res.status(404).json({ error: 'not_found' });
@@ -338,14 +360,16 @@ export function createApp(q: Q) {
       proposedAmount: official ? amountPaisa(p.net_tenths, official.rate_rupees) : null,
       resolution: resolution ?? null,
     });
-  });
-  app.post('/api/purchases/:id/price-resolution', requireAuth, requireRole('office'), async (req: AuthedRequest, res) => {
+  }));
+  app.post('/api/purchases/:id/price-resolution', requireAuth, requireRole('office'), ah(async (req: AuthedRequest, res) => {
     const parsed = z.object({ expectedRate: z.number().int().positive(), reason: z.string().trim().min(5).max(500) }).safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'invalid_body' });
       return;
     }
-    const outcome = await q.tx(async (t) => {
+    let outcome: string | null;
+    try {
+      outcome = await q.tx(async (t) => {
       const p = await t.get<any>(
         'SELECT p.*, m.name_mr FROM purchases p JOIN members m ON m.id=p.member_id WHERE p.id=?',
         [req.params.id]
@@ -378,16 +402,20 @@ export function createApp(q: Q) {
         p.id, p.member_id, text, 'sent', now, now,
       ]);
       return null;
-    });
+      });
+    } catch (e) {
+      if (isUniqueViolation(e)) outcome = 'already_resolved_or_reserved';
+      else throw e;
+    }
     if (outcome) {
       res.status(409).json({ error: outcome });
       return;
     }
     res.json({ ok: true, stillHeldForReview: true });
-  });
+  }));
 
   // ---------- office dashboard ----------
-  app.get('/api/dashboard', requireAuth, requireRole('office'), async (_, res) => {
+  app.get('/api/dashboard', requireAuth, requireRole('office'), ah(async (_, res) => {
     const today = todayIST();
     const dayExpr = istDate('device_ts');
     const todayRows = await q.all(
@@ -408,10 +436,10 @@ export function createApp(q: Q) {
       `SELECT centre_code AS "centre", crop, COALESCE(SUM(net_tenths),0) AS "netTenths" FROM purchases GROUP BY centre_code, crop ORDER BY centre_code, crop`
     );
     res.json({ date: today, today: todayRows, todayByCrop: byCrop, pendingPayment: pending, flaggedCount: flagged.c, stock });
-  });
+  }));
 
   // ---------- payment run ----------
-  app.post('/api/payment-runs', requireAuth, requireRole('office'), async (req: AuthedRequest, res) => {
+  app.post('/api/payment-runs', requireAuth, requireRole('office'), ah(async (req: AuthedRequest, res) => {
     const body = z.object({ purchaseIds: z.array(z.number().int()).min(1).max(1000) }).safeParse(req.body);
     if (!body.success) {
       res.status(400).json({ error: 'invalid_body' });
@@ -428,7 +456,9 @@ export function createApp(q: Q) {
       return;
     }
     const total = rows.reduce((s, r) => s + r.amount_paisa, 0);
-    const runId = await q.tx(async (t) => {
+    let runId: number;
+    try {
+      runId = await q.tx(async (t) => {
       const inserted = await t.get<{ id: number }>(
         'INSERT INTO payment_runs (run_date, item_count, total_paisa, created_by, created_at) VALUES (?,?,?,?,?) RETURNING id',
         [todayIST(), rows.length, total, req.user!.username, now]
@@ -439,11 +469,19 @@ export function createApp(q: Q) {
           id, r.id, r.member_id, r.amount_paisa,
         ]);
       return id;
-    });
+      });
+    } catch (e) {
+      // Lost a concurrent race for the same purchase (payment_items.purchase_id is UNIQUE).
+      if (isUniqueViolation(e)) {
+        res.status(400).json({ error: 'no_approved_purchases' });
+        return;
+      }
+      throw e;
+    }
     res.json({ runId, itemCount: rows.length, totalPaisa: total });
-  });
+  }));
 
-  app.get('/api/payment-runs', requireAuth, requireRole('office'), async (_, res) => {
+  app.get('/api/payment-runs', requireAuth, requireRole('office'), ah(async (_, res) => {
     const runs = await q.all<any>(
       'SELECT id, run_date AS "runDate", item_count AS "itemCount", total_paisa AS "totalPaisa", status, created_at AS "createdAt" FROM payment_runs ORDER BY id DESC'
     );
@@ -452,9 +490,9 @@ export function createApp(q: Q) {
     res.json({
       runs: await Promise.all(runs.map(async (r: any) => ({ ...r, items: await q.all(itemsSql, [r.id]) }))),
     });
-  });
+  }));
 
-  app.post('/api/payment-runs/:id/mark-paid', requireAuth, requireRole('office'), async (req, res) => {
+  app.post('/api/payment-runs/:id/mark-paid', requireAuth, requireRole('office'), ah(async (req, res) => {
     const done = await q.tx(async (t) => {
       const info = await t.run(`UPDATE payment_runs SET status = 'paid' WHERE id = ? AND status = 'file_generated'`, [req.params.id]);
       if (info.changes === 0) return false;
@@ -468,9 +506,9 @@ export function createApp(q: Q) {
       return;
     }
     res.json({ ok: true });
-  });
+  }));
 
-  app.get('/api/payment-runs/:id/file', requireAuth, requireRole('office'), async (req, res) => {
+  app.get('/api/payment-runs/:id/file', requireAuth, requireRole('office'), ah(async (req, res) => {
     const run = await q.get<{ id: number; runDate: string }>('SELECT id, run_date AS "runDate" FROM payment_runs WHERE id = ?', [
       req.params.id,
     ]);
@@ -496,10 +534,10 @@ export function createApp(q: Q) {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="payment-run-${run.id}.csv"`);
     res.send(lines.join('\r\n'));
-  });
+  }));
 
   // ---------- SMS outbox (mock gateway) ----------
-  app.get('/api/sms', requireAuth, async (req: AuthedRequest, res) => {
+  app.get('/api/sms', requireAuth, ah(async (req: AuthedRequest, res) => {
     const clauses: string[] = [];
     const params: unknown[] = [];
     if (req.user!.role === 'operator') {
@@ -515,10 +553,10 @@ export function createApp(q: Q) {
       params
     );
     res.json({ sms: rows });
-  });
+  }));
 
   // ---------- AI photo reading ----------
-  app.post('/api/ai/read-photo', requireAuth, requireRole('operator'), async (req, res) => {
+  app.post('/api/ai/read-photo', requireAuth, requireRole('operator'), ah(async (req, res) => {
     const body = z
       .object({
         kind: z.enum(['scale', 'moisture']),
@@ -532,11 +570,17 @@ export function createApp(q: Q) {
     }
     const result = await readMeterPhoto(body.data.kind, body.data.imageBase64, body.data.mimeType || 'image/jpeg');
     res.json(result);
-  });
+  }));
 
   app.get('/api/health', (_, res) => res.json({ ok: true }));
 
   app.use('/api', (_, res) => res.status(404).json({ error: 'not_found' }));
+
+  // Last-resort error handler: no stack or database detail leaks to clients.
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('Unhandled route error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'internal' });
+  });
 
   const dist = path.resolve(process.cwd(), 'web/dist');
   if (fs.existsSync(dist)) {
