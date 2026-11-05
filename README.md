@@ -9,7 +9,9 @@ the office sees stock, sets the daily price, and generates bank payment files.
 - `web/` - mobile-first React PWA (Marathi first, English toggle). Works offline:
   entries save to on-device IndexedDB, chained with tamper-evident hashes, and
   sync when the network returns.
-- `server/` - Node + Express + SQLite (better-sqlite3). Sync is idempotent
+- `server/` - Node + Express. SQLite (better-sqlite3) is the local default; the
+  live demo runs on free Neon Postgres via `DATABASE_URL` or `PG*` env vars
+  (see deployment.md). Sync is idempotent
   (each slip has a device-generated UUID), assigns official slip numbers, runs
   anomaly flags, queues mock SMS slips, and produces the bank bulk CSV.
 - `shared/` - the weight/moisture/money maths and the hash-chain code shared by
@@ -47,5 +49,6 @@ payment CSV is a generic unverified bank layout. Photo reading is coded but has
 not been verified with a live authorized key. Hashes are unsigned tamper-evidence,
 not trusted timestamps or tamper-proof records. Without a dated cached price, collections can be kept as local unpriced drafts for explicit dated-price review later. Sync holds missing/mismatched dated prices for review;
 this is a conservative prototype assumption, not a confirmed FPC pricing policy.
-See TDD.md for the threat model and unfinished workflows. The free demo database
+See TDD.md for the threat model and unfinished workflows, and deployment.md for the
+private review demo (Render Free + free Neon Postgres). The free demo database
 is temporary, not production storage.
