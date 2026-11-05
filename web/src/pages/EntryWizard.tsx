@@ -6,7 +6,7 @@ import {
 } from '@app/shared';
 import { useApp, Shell } from '../App';
 import { cachedMembers, cachedRate, cachePrices, getDb, type CollectionDraft } from '../offline/db';
-import { saveEntry, trySync, refreshReferenceData, todayIST, isOnlineNow } from '../offline/sync';
+import { saveEntry, trySync, refreshReferenceData, todayIST, isOnlineNow, isForceOffline } from '../offline/sync';
 import { api } from '../api';
 
 interface AiState {
@@ -53,7 +53,7 @@ function PhotoReader({
     const { base64, dataUrl } = await toBase64Resized(file);
     setAi({ photoName: file.name, photoDataUrl: dataUrl, valueTenths: null, status: 'none' });
     if (!isOnlineNow()) {
-      setAi({ photoName: file.name, photoDataUrl: dataUrl, valueTenths: null, status: 'unavailable', reason: 'offline' });
+      setAi({ photoName: file.name, photoDataUrl: dataUrl, valueTenths: null, status: 'unavailable', reason: isForceOffline() ? 'offline-sim' : 'offline' });
       return;
     }
     setAi({ photoName: file.name, photoDataUrl: dataUrl, valueTenths: null, status: 'reading' });
@@ -65,7 +65,7 @@ function PhotoReader({
         setAi({ photoName: file.name, photoDataUrl: dataUrl, valueTenths: null, status: r.status === 'unavailable' ? 'unavailable' : 'unsure', reason: r.reason });
       }
     } catch {
-      setAi({ photoName: file.name, photoDataUrl: dataUrl, valueTenths: null, status: 'unavailable' });
+      setAi({ photoName: file.name, photoDataUrl: dataUrl, valueTenths: null, status: 'unavailable', reason: 'network' });
     }
   };
 
@@ -93,7 +93,14 @@ function PhotoReader({
         </div>
       )}
       {ai.status === 'unsure' && <div className="callout">{t('aiUnsure')}</div>}
-      {ai.status === 'unavailable' && <div className="callout">{t('aiUnavailable')}</div>}
+      {ai.status === 'unavailable' && (
+        <div className="callout">
+          {ai.reason === 'offline-sim' ? t('aiOfflineSim')
+            : ai.reason === 'offline' ? t('aiOffline')
+            : ai.reason === 'network' ? t('aiNetworkError')
+            : t('aiUnavailable')}
+        </div>
+      )}
     </div>
   );
 }
