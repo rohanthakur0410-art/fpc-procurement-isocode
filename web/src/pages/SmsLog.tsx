@@ -24,13 +24,15 @@ export default function SmsLog() {
       {loading && !err && <div className="callout green">{t('loading')}</div>}
       {!loading && rows.length === 0 && !err && <div className="callout">{t('empty')}</div>}
       {rows.map((r) => (
-        <div key={r.id} className="card">
-          <div className="kv">
-            <span className="k">{lang === 'mr' ? r.farmerNameMr : r.farmerName} · {r.slipNo} · {r.centreCode}</span>
-            <span className="badge green">{r.status === 'sent' ? '✓' : '…'}</span>
+        <div key={r.id} className="sms-preview">
+          <div className="sms-head">
+            <span className="sms-title">{lang === 'mr' ? r.farmerNameMr : r.farmerName} · {r.slipNo}</span>
+            <span className="badge amber">{t('simulated')}</span>
           </div>
-          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 14, marginTop: 8 }}>{r.body}</pre>
-          <p className="sub" style={{ marginTop: 6 }}>{r.sentAt ? fmtDate(r.sentAt, lang) : ''}</p>
+          <div className="sms-bubble">
+            <pre>{r.body}</pre>
+          </div>
+          <p className="sms-note">{r.centreCode}{r.sentAt ? ` · ${fmtDate(r.sentAt, lang)}` : ''} · {t('smsDemoNote')}</p>
         </div>
       ))}
     </Shell>

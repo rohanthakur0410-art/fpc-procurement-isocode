@@ -237,9 +237,20 @@ export default function EntryWizard() {
           </div>
           <div className="body"><pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 16, margin: 0 }}>{saved.slipText}</pre></div>
         </div>
-        <div className={`callout ${saved.synced ? 'green' : ''}`}>
-          {saved.synced ? t('smsSentMock') : t('savedOffline')}
-        </div>
+        {saved.synced ? (
+          <div className="sms-preview" aria-label={t('smsPreview')}>
+            <div className="sms-head">
+              <span className="sms-title">{t('smsPreview')}</span>
+              <span className="badge amber">{t('simulated')}</span>
+            </div>
+            <div className="sms-bubble">
+              <pre>{saved.slipText}</pre>
+            </div>
+            <p className="sms-note">{t('smsDemoNote')}</p>
+          </div>
+        ) : (
+          <div className="callout">{t('savedOffline')}</div>
+        )}
         <p className="sub" style={{ textAlign: 'center' }}>{t('slipReadableNote')}</p>
         <button className="big-btn" onClick={reset}>{t('anotherEntry')}</button>
         <button className="big-btn secondary" onClick={() => navigate('/operator')}>{t('goHome')}</button>
