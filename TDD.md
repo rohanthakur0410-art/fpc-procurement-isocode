@@ -6,7 +6,9 @@
 
 **Date:** November 2026
 
-**Repository:** GitHub URL to be added here before submission
+**Repository:** https://github.com/rohanthakur0410-art/fpc-procurement (private at review time; publication is a separate decision)
+
+**Live review demo:** https://fpc-procurement.onrender.com (free tier sleeps when idle; see deployment.md)
 
 ---
 
@@ -110,17 +112,26 @@ Two kinds, clearly separated:
    farmer delivering twice within an hour, chain-broken batches. Flagged
    purchases are held from the payment run until the office approves them.
    Flags never cancel a purchase.
-2. **AI photo reading (implemented, not yet verified with a live key):** the
+2. **AI photo reading (live and verified on the hosted demo):** the
    operator can photograph the weighing scale and the moisture meter; a server
-   endpoint sends the photo to a vision model (a separately authorized Gemini key via
-   `GEMINI_API_KEY`) and proposes a value for the operator to confirm, and the entry screen is built to
-   hold saving until a typed value that disagrees with the photo reading is
+   endpoint sends the photo to a vision model (a separately authorized Google AI
+   Studio free-tier key via `GEMINI_API_KEY`; model chain gemini-3.1-flash-lite,
+   then gemini-3.8-flash) and proposes a value for the operator to confirm. The entry screen
+   holds saving until a typed value that disagrees with the photo reading is
    corrected - the brief's "when it is wrong, someone can fix it" requirement.
-   Status: the endpoint and fallback are coded, but the vision path has not
-   been run against the live model in the current private build, so it is presented as
-   unverified rather than tested. The tested, primary path is manual entry:
-   when no key is configured or the model is unavailable or unsure, the app
-   says so and the operator types the values.
+   Verified 6 November 2026 (IST) with two real display photos (a weighbridge
+   indicator reading 100 kg and a wood moisture meter reading 14.0%, both
+   public CC BY-SA 4.0 images): 4/4 correct in a harness using the production
+   prompts, chain and preprocessing, then end to end on the live service
+   through the real entry UI - readings appeared beside each photo, prefilled
+   only after operator confirm, a mismatching typed value blocked saving, and
+   review computed the expected net weight under the moisture rule. Scope
+   honesty: verified on those two display-photo types only, not arbitrary
+   photos. The fallback path is the primary guarantee: when no key is
+   configured or the model is unavailable or unsure, the app says so and the
+   operator types the values. Failure states are named precisely on screen
+   (offline-simulate switch on, no internet, network error mid-read, model
+   unsure) instead of one generic "AI unavailable".
 
 ## 7. Payments and SMS (mocked, as the brief instructs)
 
@@ -132,7 +143,12 @@ Two kinds, clearly separated:
   amount, per-slip payment reference). Marking a run paid sets each purchase
   to `paid`. Flagged purchases are excluded until approved. Unverified registry beneficiaries are excluded server-side. Each run lists its per-farmer status and amount. Bank account and
   IFSC in the seed data are synthetic; the CSV layout is a generic NEFT-style
-  file (assumption - the brief names no bank).
+  file (assumption - the brief names no bank). Because the registry stores
+  bank accounts masked only, the CSV's account column carries the masked
+  value, so the generated file is demo-shaped and could not be uploaded to a
+  real bank as-is. Production use would require collecting full account
+  numbers under a DPDP-compliant consent flow and the bank's own bulk-upload
+  template; the brief supplies neither.
 
 ## 8. Security
 
@@ -143,6 +159,20 @@ Two kinds, clearly separated:
 - Hash chain verified for new sync entries. Dated official rates are checked at sync; missing/mismatched prices preserve the recorded purchase but flag it and hold payment. The server never silently approves an arbitrary client rate.
 - Secrets (session secret, optional Gemini key) come from environment
   variables only; none are committed.
+
+### Privacy and data use
+
+- No Aadhaar numbers are collected or stored, per the brief.
+- Bank details exist masked only, and the registry's verified marker is
+  synthetic demo data, not real bank or identity verification.
+- All seeded farmers, users and purchases are synthetic sample data.
+- Scale/moisture photos are sent to the vision API only when the operator
+  attaches them. The hosted demo uses the owner's free (unpaid) AI Studio key,
+  under which Google may review submitted images to improve its products; no
+  billing account exists, so charges are not possible. The server keeps only
+  the photo's filename on the entry, not the image.
+- Neither free tier (Render hosting, Neon database) is suitable for real
+  procurement data; both are demo infrastructure.
 
 ## 9. Assumptions (all labelled)
 
@@ -226,12 +256,14 @@ Design rules worth noticing:
   excluded from payment run; CSV totals equal the sum of included slips to
   the paisa; SMS queued per accepted purchase; a slip already in a generated run cannot be added to another.
 - **Further integrity:** a changed UUID retry or different-device retry is rejected, legitimate retries retain hold flags, unverified beneficiaries are excluded, and seed timestamps are host-timezone independent.
-- **Vision adapter, mocked provider only:** scale/moisture response parsing, unsure/malformed/invalid result, missing key and provider error. No external key or live vision call was used.
+- **Vision adapter, mocked provider only:** scale/moisture response parsing, unsure/malformed/invalid result, missing key and provider error. The automated suite uses no external key or live vision call; the live-model verification of 6 November 2026 (see §6 and the record below) is a separate manual record, not part of the suite.
 
 Manual verification: full offline round-trip on a fresh browser profile with
 the network disabled (app loads from service worker cache, farmer list
 available, entry saved offline, syncs later with an official slip number and
 identical amounts), with a mobile-width visual check of each staged entry screen and review. This verifies one controlled desktop-Chrome run, not all Android devices, storage eviction, multi-day outage or multi-tab concurrency.
+On 6 November 2026 the hosted demo was additionally verified end to end in a
+real browser session (record at the end of this document).
 
 ## 12. What is mocked vs real
 
@@ -240,13 +272,15 @@ identical amounts), with a mobile-width visual check of each staged entry screen
 | Offline storage, sync, hash chain, idempotency | SMS gateway (internal log instead) |
 | Money math, price board, flags, payment CSV | Bank file upload (CSV download instead) |
 | Auth, roles, per-centre data | |
+| AI photo reading of scale/meter displays (verified scope, §6) | |
 
 Registry data has a dedicated searchable screen available online and from cached data offline, and remains seeded/read-only. The verified marker and masked bank fields are synthetic demo data, not real bank/identity verification. Payment runs are initiated manually; there is no automatic weekly schedule. CSV layout is not validated against any bank. A generated unpaid run reserves its slips to prevent duplicate file inclusion; cancellation/reissue is not implemented.
 
-Implemented but unverified (neither tested-real nor mocked): AI photo reading.
-The endpoint and fallback are coded, but the vision path has not been exercised
-against the live model. Configuring an API key alone does not establish
-operation; it stays labelled unverified until a live run confirms it.
+AI photo reading moved from "implemented but unverified" to verified on 6
+November 2026 (IST) on the hosted demo with two real display photos (§6).
+Scope stays narrow: those two display-photo types on the free-tier model, with
+manual entry always available and mismatches blocked. Wider accuracy claims
+would need a labelled photo set, which is future work (§14).
 
 ## 13. UI and design decisions
 
@@ -283,8 +317,9 @@ Cut deliberately (scope discipline per the brief):
 
 - Real SMS gateway and real bank upload (the brief instructs mocking both;
   the internal SMS log and the CSV are the honest stand-ins).
-- On-device AI model for photo reading; a hosted model is intended to keep the
-  phone app light, with manual entry as the primary path.
+- On-device AI model for photo reading; a hosted model (Gemini free tier) is
+  used to keep the phone app light, with manual entry always available as the
+  fallback.
 - Multi-operator keying of the hash chain on a shared device (single
   operator session assumed, see §9).
 - Centre stock is shown on the office dashboard as a per-centre aggregate from
@@ -293,9 +328,12 @@ Cut deliberately (scope discipline per the brief):
 - Live deployment is optional. The app runs as one Node process and deploys
   to a free Render service unchanged, with one honest limit: on the free tier
   the service sleeps after about 15 idle minutes (roughly a one-minute
-  wake-up on the next visit) and its local database is reset to the seeded
-  sample data on every sleep or redeploy, so entries made in a hosted demo
-  are temporary.
+  wake-up on the next visit). The hosted demo is attached to a free Neon
+  Postgres database (serverless, Singapore region), so entries made in the
+  hosted demo survive service sleep and redeploys. Without the Postgres
+  environment variables the app falls back to a local SQLite file that resets
+  on sleep or redeploy - fine for local development. Neither free tier is
+  suitable for real procurement data.
 
 Next, with more time: a printed thermal-slip fallback for centres with no
 farmer phones, per-operator hash chains, photo reading validation against a
@@ -350,3 +388,33 @@ separate approval (200). The generated payment CSV then contained the corrected
 ₹23,765.00 for that slip. 55 tests pass; mocked vision remains 8 of those. This
 does not establish trusted time, real bank processing or reversal after a
 generated payment file.
+
+
+### Live hosted verification record (6 November 2026, IST)
+
+Verified on the private Render deployment (Neon Postgres attached, so records
+survive sleep and redeploys), through the real entry UI in a browser session:
+
+- Photo-to-confirmed-reading end to end with two real display photos: a
+  weighbridge indicator (100 kg) and a wood moisture meter (14.0%), both public
+  CC BY-SA 4.0 images. AI readings prefilled only after operator confirm; a
+  mismatching typed value blocked saving with the mismatch warning.
+- Review math: gross 100.0 kg, tare 10.0 kg, moisture 14.0% gave net 88.2 kg
+  under the 1%-per-point-over-12% rule. The test entry was discarded without
+  saving; demo data was unchanged.
+- The photo picker no longer forces the camera on the shipped bundle (the
+  capture attribute was removed); an operator phone screenshot showed an
+  existing gallery photo loaded into the entry form. Native Android chooser
+  behaviour as such was not separately verified.
+- The failure banners distinguish offline-simulate-on, no internet, network
+  error mid-read and model-unsure. An operator report of a generic
+  "AI unavailable" on a phone has two possible client-side causes: the demo
+  offline-simulate switch left on (it persists on the device and
+  short-circuits reading with no server call), or a thrown network error on
+  the phone's connection. The server, API key and shipped build were verified
+  healthy in a fresh browser session minutes after the report; on-phone
+  confirmation of which cause applied is pending. The banner copy now names
+  each state, so any recurrence says which one it is.
+
+This record does not establish accuracy on arbitrary photos, production
+durability, trusted time, or real bank/SMS processing.
