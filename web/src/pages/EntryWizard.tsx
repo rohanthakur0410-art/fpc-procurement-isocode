@@ -78,7 +78,7 @@ function PhotoReader({
         {!ai.photoName ? (
           <label className="btn small">
             {t('addPhoto')}
-            <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => pick(e.target.files?.[0] ?? null)} />
           </label>
         ) : (
           <button className="btn small" onClick={() => setAi(emptyAi)}>{t('removePhoto')}</button>
