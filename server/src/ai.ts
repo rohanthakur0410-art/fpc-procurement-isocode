@@ -38,8 +38,8 @@ export async function readMeterPhoto(
   }
   const prompt =
     kind === 'scale'
-      ? 'This is a photo of a digital weighing scale display at a farm produce collection centre in India. Read the weight shown in kilograms. Reply with JSON only: {"weightKg": <number>} or {"unsure": true} if the number is not clearly readable.'
-      : 'This is a photo of a grain moisture meter display. Read the moisture percentage shown. Reply with JSON only: {"moisturePercent": <number>} or {"unsure": true} if the number is not clearly readable.';
+      ? 'This is a photo of a digital weighing scale display at a farm produce collection centre in India. First transcribe the exact characters shown on the weight display, then give the weight in kilograms. Reply with JSON only: {"displayText": "<exact characters on the display>", "weightKg": <number>}. If the display is not clearly readable, reply {"unsure": true}. Never guess.'
+      : 'This is a photo of a grain moisture meter display. First transcribe the exact characters shown on the display, then give the moisture percentage. Reply with JSON only: {"displayText": "<exact characters on the display>", "moisturePercent": <number>}. If the display is not clearly readable, reply {"unsure": true}. Never guess.';
 
   let lastReason = 'AI service unavailable.';
   for (const model of modelChain()) {
@@ -79,7 +79,18 @@ export async function readMeterPhoto(
         const parsed = JSON.parse(cleaned);
         if (parsed.unsure) return { status: 'unsure', reason: 'AI could not read the photo clearly.' };
         const raw = kind === 'scale' ? Number(parsed.weightKg) : Number(parsed.moisturePercent);
-        if (!Number.isFinite(raw) || raw < (kind === 'moisture' ? 0 : 0.1) || raw > (kind === 'moisture' ? 40 : 100000)) {
+        // Transcription cross-check: the numeric value must match the digits the
+        // model says it saw. A confident-but-inconsistent answer becomes unsure,
+        // never a proposed value.
+        const displayText = typeof parsed.displayText === 'string' ? parsed.displayText : '';
+        const digits = displayText.match(/\d+(?:\.\d+)?/);
+        if (!digits) {
+          return { status: 'unsure', reason: 'AI response contained no readable digits.' };
+        }
+        if (!Number.isFinite(raw) || Math.abs(Number(digits[0]) - raw) > 1e-6) {
+          return { status: 'unsure', reason: 'AI reading was internally inconsistent.' };
+        }
+        if (raw < (kind === 'moisture' ? 0 : 0.1) || raw > (kind === 'moisture' ? 40 : 100000)) {
           return { status: 'unsure', reason: 'AI returned an implausible value.' };
         }
         return { status: 'ok', valueTenths: Math.round(raw * 10) };

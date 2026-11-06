@@ -9,17 +9,17 @@ describe('vision adapter contract (mock provider, not live vision verification)'
   it.each([['scale','weightKg',850,8500],['moisture','moisturePercent',13.5,135]] as const)
   ('parses %s reading in tenths', async (kind,key,value,want) => {
     vi.stubEnv('GEMINI_API_KEY','unit-test-not-a-key');
-    vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text:JSON.stringify({[key]:value})}]}}]})})));
+    vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text:JSON.stringify({displayText:String(value),[key]:value})}]}}]})})));
     expect(await readMeterPhoto(kind,'fake','image/jpeg')).toEqual({status:'ok',valueTenths:want});
   });
-  it.each(['{"unsure":true}','not json','{"weightKg":-1}'])('handles unsure or bad result %s',async text=>{
+  it.each(['{"unsure":true}','not json','{"weightKg":-1}','{"displayText":"88.8","weightKg":50}','{"weightKg":850}'])('handles unsure or bad result %s',async text=>{
     vi.stubEnv('GEMINI_API_KEY','unit-test-not-a-key');
     vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text}]}}]})})));
     expect((await readMeterPhoto('scale','fake','image/jpeg')).status).toBe('unsure');
   });
   it('rejects moisture readings outside the entry range', async () => {
     vi.stubEnv('GEMINI_API_KEY','unit-test-not-a-key');
-    vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text:'{"moisturePercent":95}'}]}}]})})));
+    vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text:'{"displayText":"95","moisturePercent":95}'}]}}]})})));
     expect((await readMeterPhoto('moisture','fake','image/jpeg')).status).toBe('unsure');
   });
   it('handles provider errors without invented readings',async()=>{
@@ -37,7 +37,7 @@ describe('model chain failover (mock provider)', () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       urls.push(url);
       if (url.includes('gemini-retired-x')) return { ok: false, status: 404 };
-      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"weightKg":850}' }] } }] }) };
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"displayText":"850","weightKg":850}' }] } }] }) };
     }));
     expect(await readMeterPhoto('scale', 'fake', 'image/jpeg')).toEqual({ status: 'ok', valueTenths: 8500 });
     expect(urls.length).toBe(2);
@@ -51,7 +51,7 @@ describe('model chain failover (mock provider)', () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
       calls++;
       if (calls === 1) return { ok: false, status: 503 };
-      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"moisturePercent":13.5}' }] } }] }) };
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"displayText":"13.5","moisturePercent":13.5}' }] } }] }) };
     }));
     expect(await readMeterPhoto('moisture', 'fake', 'image/jpeg')).toEqual({ status: 'ok', valueTenths: 135 });
     expect(calls).toBe(2);
