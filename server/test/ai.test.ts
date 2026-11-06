@@ -17,6 +17,28 @@ describe('vision adapter contract (mock provider, not live vision verification)'
     vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text}]}}]})})));
     expect((await readMeterPhoto('scale','fake','image/jpeg')).status).toBe('unsure');
   });
+  it.each([
+    ['moisture', '{"displayText":"12:07 21.9C Quality wheat 16.0%","moisturePercent":16}', 160],
+    ['moisture', '{"displayText":"Wheat 14.0%","moisturePercent":14}', 140],
+    ['scale', '{"displayText":"08:15 NET 100.0 kg","weightKg":100}', 1000],
+    ['scale', '{"displayText":"50.0","weightKg":50}', 500],
+  ] as const)('accepts value matching unit-anchored or present digits %s', async (kind, text, want) => {
+    vi.stubEnv('GEMINI_API_KEY','unit-test-not-a-key');
+    vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text}]}}]})})));
+    expect(await readMeterPhoto(kind as 'scale'|'moisture','fake','image/jpeg')).toEqual({status:'ok',valueTenths:want});
+  });
+  it.each([
+    ['moisture', '{"displayText":"12:07 21.9C Quality wheat 16.0%","moisturePercent":21.9}'],
+    ['moisture', '{"displayText":"12:07 21.9C Quality wheat 16.0%","moisturePercent":12}'],
+    ['scale', '{"displayText":"08:15 NET 100.0 kg","weightKg":815}'],
+    ['moisture', '{"displayText":"Tank1 12.5% Tank2 14.0%","moisturePercent":14}'],
+    ['moisture', '{"displayText":"12:07 16.0","moisturePercent":16}'],
+    ['scale', '{"displayText":"GROSS 152.0 kg TARE 52.0 kg","weightKg":152}'],
+  ] as const)('rejects value disagreeing with displayed digits %s', async (kind, text) => {
+    vi.stubEnv('GEMINI_API_KEY','unit-test-not-a-key');
+    vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text}]}}]})})));
+    expect((await readMeterPhoto(kind as 'scale'|'moisture','fake','image/jpeg')).status).toBe('unsure');
+  });
   it('rejects moisture readings outside the entry range', async () => {
     vi.stubEnv('GEMINI_API_KEY','unit-test-not-a-key');
     vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({candidates:[{content:{parts:[{text:'{"displayText":"95","moisturePercent":95}'}]}}]})})));

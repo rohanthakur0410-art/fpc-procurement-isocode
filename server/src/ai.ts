@@ -83,11 +83,25 @@ export async function readMeterPhoto(
         // model says it saw. A confident-but-inconsistent answer becomes unsure,
         // never a proposed value.
         const displayText = typeof parsed.displayText === 'string' ? parsed.displayText : '';
-        const digits = displayText.match(/\d+(?:\.\d+)?/);
-        if (!digits) {
-          return { status: 'unsure', reason: 'AI response contained no readable digits.' };
+        // Transcription cross-check on multi-number displays (date/time/temp often
+        // precede the reading): when a unit marker is present the value must match
+        // the unit-anchored number (% for moisture, kg for scale); otherwise it must
+        // match some number in the transcription. Either way a confident-but-
+        // inconsistent answer becomes unsure, never a proposed value.
+        // Multi-number displays (date/time/temp often precede the reading): anchor on
+        // the unit marker when present (% for moisture, kg for scale). Ambiguous
+        // transcriptions - several unit-marked numbers, or no unit marker with several
+        // distinct numbers - reject to unsure rather than risk an incidental match.
+        const unitRe = kind === 'moisture' ? /(\d+(?:\.\d+)?)\s*%/g : /(\d+(?:\.\d+)?)\s*kg\b/gi;
+        const anchored = new Set([...displayText.matchAll(unitRe)].map((m) => Number(m[1])));
+        const numbers = new Set([...displayText.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0])));
+        let expected: number | null = null;
+        if (anchored.size === 1) {
+          expected = [...anchored][0];
+        } else if (anchored.size === 0 && numbers.size === 1) {
+          expected = [...numbers][0];
         }
-        if (!Number.isFinite(raw) || Math.abs(Number(digits[0]) - raw) > 1e-6) {
+        if (expected === null || !Number.isFinite(raw) || Math.abs(expected - raw) > 1e-6) {
           return { status: 'unsure', reason: 'AI reading was internally inconsistent.' };
         }
         if (raw < (kind === 'moisture' ? 0 : 0.1) || raw > (kind === 'moisture' ? 40 : 100000)) {
