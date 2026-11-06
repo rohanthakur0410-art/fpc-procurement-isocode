@@ -133,6 +133,17 @@ Two kinds, clearly separated:
    (offline-simulate switch on, no internet, network error mid-read, model
    unsure) instead of one generic "AI unavailable".
 
+   Extended moisture-meter evidence (7 November 2026, IST), run through the
+   server's own read function with the production prompt, model chain and
+   validation against the live model (function-level, not through the deployed
+   HTTP endpoint): a real building moisture meter photo showing 0.0% (Trotec
+   BM40, CC BY 4.0) read correctly. A real grain moisture meter photo showing
+   16.0% (Draminski GMDM2, manufacturer product photo) was safely refused as
+   "unsure": that display also shows time and temperature, and the
+   transcription consistency guard rejected rather than risk proposing a
+   wrong number, so the operator types the value. Verified scope remains
+   these specific display photos, not arbitrary photos.
+
 ## 7. Payments and SMS (mocked, as the brief instructs)
 
 - **SMS:** every accepted purchase queues a Marathi slip message (the same text as the on-screen slip,
@@ -243,7 +254,7 @@ Design rules worth noticing:
 
 ## 11. Testing
 
-55 automated tests (`npx vitest run`):
+60 automated tests (`npx vitest run`):
 
 - **Calculation:** every brief sample row exact to the paisa; fractional
   moisture; rounding behaviour.
@@ -337,7 +348,11 @@ Cut deliberately (scope discipline per the brief):
 
 Next, with more time: a printed thermal-slip fallback for centres with no
 farmer phones, per-operator hash chains, photo reading validation against a
-labelled sample set, and a marathi voice readout of the slip.
+labelled sample set, and a marathi voice readout of the slip. A unit-anchored
+refinement of the AI transcription consistency check (the proposed value must
+match the single %- or kg-marked number on the display; ambiguous
+multi-number displays keep refusing) is already written and unit-tested, and
+is pending deployment at submission time.
 
 ## 15. How a reviewer runs it
 
