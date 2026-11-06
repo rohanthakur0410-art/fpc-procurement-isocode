@@ -6,7 +6,7 @@
 
 **Date:** November 2026
 
-**Repository:** https://github.com/rohanthakur0410-art/fpc-procurement (private at review time; publication is a separate decision)
+**Repository:** https://github.com/rohanthakur0410-art/fpc-procurement (public during Isocode review, per the brief)
 
 **Live review demo:** https://fpc-procurement.onrender.com (free tier sleeps when idle; see deployment.md)
 
@@ -133,16 +133,22 @@ Two kinds, clearly separated:
    (offline-simulate switch on, no internet, network error mid-read, model
    unsure) instead of one generic "AI unavailable".
 
-   Extended moisture-meter evidence (7 November 2026, IST), run through the
-   server's own read function with the production prompt, model chain and
-   validation against the live model (function-level, not through the deployed
-   HTTP endpoint): a real building moisture meter photo showing 0.0% (Trotec
-   BM40, CC BY 4.0) read correctly. A real grain moisture meter photo showing
-   16.0% (Draminski GMDM2, manufacturer product photo) was safely refused as
-   "unsure": that display also shows time and temperature, and the
-   transcription consistency guard rejected rather than risk proposing a
-   wrong number, so the operator types the value. Verified scope remains
-   these specific display photos, not arbitrary photos.
+   Extended moisture-meter evidence (7 November 2026, IST): a real building
+   moisture meter photo showing 0.0% (Trotec BM40, CC BY 4.0) read correctly
+   through the server's read function against the live model. A real grain
+   moisture meter photo showing 16.0% (Draminski GMDM2, manufacturer product
+   photo) was at first refused as "unsure" by the transcription consistency
+   guard. The raw model response was not logged, so the exact cause is not
+   recorded; code inspection showed the guard compared the proposed value
+   only against the first number in the transcription - a plausible failure
+   mode on a display that also shows time and temperature. The guard now
+   anchors on the unit-marked number (the value must match the single %- or
+   kg-marked number on the display; ambiguous multi-number displays still
+   refuse safely), and the same grain-meter photo was then
+   read correctly as 16.0% through the deployed HTTP endpoint with operator
+   sign-in (one call, 7 November 2026 ~00:24 IST). Verified scope remains
+   these specific display photos, not arbitrary photos: an unreadable or
+   ambiguous display refuses and the operator types the value.
 
 ## 7. Payments and SMS (mocked, as the brief instructs)
 
@@ -254,7 +260,7 @@ Design rules worth noticing:
 
 ## 11. Testing
 
-60 automated tests (`npx vitest run`):
+70 automated tests (`npx vitest run`):
 
 - **Calculation:** every brief sample row exact to the paisa; fractional
   moisture; rounding behaviour.
@@ -289,7 +295,8 @@ Registry data has a dedicated searchable screen available online and from cached
 
 AI photo reading moved from "implemented but unverified" to verified on 6
 November 2026 (IST) on the hosted demo with two real display photos (§6).
-Scope stays narrow: those two display-photo types on the free-tier model, with
+Scope stays narrow: the specific verified display photos (see section 6)
+on the free-tier model, with
 manual entry always available and mismatches blocked. Wider accuracy claims
 would need a labelled photo set, which is future work (§14).
 
@@ -348,11 +355,8 @@ Cut deliberately (scope discipline per the brief):
 
 Next, with more time: a printed thermal-slip fallback for centres with no
 farmer phones, per-operator hash chains, photo reading validation against a
-labelled sample set, and a marathi voice readout of the slip. A unit-anchored
-refinement of the AI transcription consistency check (the proposed value must
-match the single %- or kg-marked number on the display; ambiguous
-multi-number displays keep refusing) is already written and unit-tested, and
-is pending deployment at submission time.
+labelled sample set, and a marathi voice readout of the slip.
+
 
 ## 15. How a reviewer runs it
 
