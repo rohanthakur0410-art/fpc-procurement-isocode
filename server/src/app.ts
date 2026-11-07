@@ -11,6 +11,7 @@ import {
 import { isUniqueViolation, type Q } from './db.js';
 import { signSession, setSessionCookie, clearSessionCookie, requireAuth, requireRole, type AuthedRequest } from './auth.js';
 import { computeFlags } from './flags.js';
+import { buildPaymentFile } from './bankfile.js';
 import { readMeterPhoto } from './ai.js';
 import { seedIfEmpty, todayIST, smsBody } from './seed.js';
 
@@ -516,24 +517,29 @@ export function createApp(q: Q) {
       res.status(404).json({ error: 'not_found' });
       return;
     }
-    // Mock bank bulk-upload CSV. Assumption (labelled in the TDD): a generic
-    // NEFT-style bulk file layout, since the brief does not name the bank.
+    // Bank bulk-upload file. ?format= selects a layout: the two Union Bank of
+    // India layouts follow that bank's published format documents (see
+    // bankfile.ts); 'generic' is the original labelled assumption. The brief
+    // names no bank, so the office picks the layout its bank actually wants.
+    const format = typeof req.query.format === 'string' ? req.query.format : 'generic';
     const items = await q.all<{ name: string; account: string; ifsc: string; amount: number; slip: string }>(
       `SELECT m.name, m.bank_account_masked AS "account", m.ifsc, i.amount_paisa AS "amount", p.slip_no AS "slip"
        FROM payment_items i JOIN members m ON m.id = i.member_id JOIN purchases p ON p.id = i.purchase_id
        WHERE i.run_id = ? ORDER BY i.id`,
       [req.params.id]
     );
-    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
-    const lines = ['Sr No,Beneficiary Name,Account Number,IFSC,Amount (Rs),Payment Ref,Value Date'];
-    items.forEach((it, i) => {
-      lines.push(
-        [i + 1, esc(it.name), esc(it.account), esc(it.ifsc), (it.amount / 100).toFixed(2), esc(`FPC-${run.runDate}-${it.slip}`), run.runDate].join(',')
-      );
+    const built = buildPaymentFile(format, {
+      runId: run.id,
+      runDate: run.runDate,
+      items: items.map((it) => ({ name: it.name, account: it.account, ifsc: it.ifsc, amountPaisa: it.amount, slip: it.slip })),
     });
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="payment-run-${run.id}.csv"`);
-    res.send(lines.join('\r\n'));
+    if (!built) {
+      res.status(400).json({ error: 'unknown_format' });
+      return;
+    }
+    res.setHeader('Content-Type', built.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${built.filename}"`);
+    res.send(built.body);
   }));
 
   // ---------- SMS outbox (mock gateway) ----------

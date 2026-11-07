@@ -164,15 +164,21 @@ Two kinds, clearly separated:
 - **Weekly payment run:** the office selects approved, unpaid purchases and
   generates a bulk payment CSV (beneficiary, masked account, IFSC, exact
   amount, per-slip payment reference). Marking a run paid sets each purchase
-  to `paid`. Flagged purchases are excluded until approved. Unverified registry beneficiaries are excluded server-side. Each run lists its per-farmer status and amount. Bank account and
-  IFSC in the seed data are synthetic; the CSV layout is a generic NEFT-style
-  file (assumption - the brief names no bank). Because the registry stores
-  bank accounts masked only, the CSV's account column carries the masked
-  value, so the generated file is demo-shaped and could not be uploaded to a
-  real bank as-is. The brief's requirement that payment files match the
-  bank's bulk-upload format is therefore only partially met: matching a real
-  bank's template needs the bank's own template and full (unmasked) account
-  numbers, and the brief supplies neither.
+  to `paid`. Flagged purchases are excluded until approved. Unverified registry beneficiaries are excluded server-side. Each run lists its per-farmer status and amount.
+  The office downloads the run file in one of three layouts: Union Bank of
+  India's published NEFT/RTGS text format and its published salary CSV
+  format (both implemented field-for-field from the bank's own public format
+  documents, linked in `server/src/bankfile.ts`), or the prototype's generic
+  CSV (labelled assumption). The FPC's own corporate ID, debit account and
+  remitter branch details are synthetic demo configuration read from
+  environment variables. Bank account and IFSC in the seed data are
+  synthetic, and the registry stores bank accounts masked only, so the
+  generated file is demo-shaped and could not be uploaded to a real bank
+  as-is. The brief's requirement that payment files match the bank's
+  bulk-upload format is met at the format level for the Union Bank layouts;
+  matching the FPC's actual bank still needs the client to name that bank,
+  supply its template if it differs, and use full (unmasked) account
+  numbers - none of which the brief supplies.
 
 ## 8. Security
 
@@ -204,10 +210,14 @@ The business-rule assumptions below are tunable by the office. Recorded history 
 
 1. **Fractional moisture deduction is pro-rata** (e.g. 13.5% -> 1.5% deduction).
    The brief states the rule for whole points only.
-2. **Payment file format** is a generic NEFT-style CSV; the "match the
-   bank's bulk-upload format" requirement is partially met - the bank's own
-   template was never supplied, so an exact match cannot be implemented or
-   verified from the brief alone.
+2. **Payment file format**: the brief names no bank, so the app implements
+   Union Bank of India's two published bulk-upload layouts field-for-field
+   (sources cited in `server/src/bankfile.ts`) alongside the prototype's
+   labelled generic CSV. The FPC-side corporate ID, debit account and
+   remitter details are synthetic demo configuration. If the FPC banks
+   elsewhere, its bank's own template and full (unmasked) account numbers
+   are still needed; the format mechanism is in place, the client-specific
+   inputs are not.
 3. **Grade B rates** (₹4,650 soybean / ₹6,900 tur) and the unusual-quantity
    threshold (1.5× a simple yield-per-acre estimate) are placeholder rules the
    office could tune; the mechanism is what matters.
@@ -269,7 +279,7 @@ Design rules worth noticing:
 
 ## 11. Testing
 
-71 automated tests (`npx vitest run`):
+76 automated tests (`npx vitest run`):
 
 - **Calculation:** every brief sample row exact to the paisa; fractional
   moisture; rounding behaviour.
@@ -282,7 +292,10 @@ Design rules worth noticing:
   identical moisture readings (current entry plus the centre's four most
   recent prior purchases) flagged and held; flagged purchase
   excluded from payment run; CSV totals equal the sum of included slips to
-  the paisa; SMS queued per accepted purchase; a slip already in a generated run cannot be added to another.
+  the paisa; Union Bank NEFT and salary file layouts match the bank's
+  documented field order, strip commas as its format doc requires, and
+  balance debit against the sum of credits; unknown formats rejected; SMS
+  queued per accepted purchase; a slip already in a generated run cannot be added to another.
 - **Further integrity:** a changed UUID retry or different-device retry is rejected, legitimate retries retain hold flags, unverified beneficiaries are excluded, and seed timestamps are host-timezone independent.
 - **Vision adapter, mocked provider only:** scale/moisture response parsing, unsure/malformed/invalid result, missing key and provider error. The automated suite uses no external key or live vision call; the live-model verification of 6 November 2026 (see section 6 and the record below) is a separate manual record, not part of the suite.
 

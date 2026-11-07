@@ -100,6 +100,8 @@ const dict: Record<string, { mr: string; en: string }> = {
   setRate: { mr: 'दर सेट करा', en: 'Set rate' },
   createRun: { mr: 'मंजूर नोंदींपासून पेमेंट फाइल बनवा', en: 'Create payment file from approved slips' },
   downloadCsv: { mr: 'CSV डाउनलोड', en: 'Download CSV' },
+  bankFileFormat: { mr: 'बँक फाइल स्वरूप', en: 'Bank file format' },
+  genericCsv: { mr: 'सामान्य CSV (गृहीत)', en: 'Generic CSV (assumption)' },
   markPaid: { mr: 'पेड म्हणून चिन्हांकित करा', en: 'Mark as paid' },
   approve: { mr: 'मंजूर करा', en: 'Approve' },
   heldReason: { mr: 'थांबवण्याचे कारण', en: 'Hold reason' },

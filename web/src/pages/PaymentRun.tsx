@@ -15,6 +15,7 @@ export default function PaymentRun() {
   const [priceReview,setPriceReview]=useState<any>(null);
   const [reason,setReason]=useState('');
   const [busy, setBusy] = useState(false);
+  const [fileFormat, setFileFormat] = useState('unionbank-neft');
 
   const load = useCallback(async () => {
     try {
@@ -107,7 +108,12 @@ export default function PaymentRun() {
             </span>
             <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <span className={`badge ${r.status === 'paid' ? 'green' : 'amber'}`}>{r.status === 'paid' ? t('paid') : t('fileGenerated')}</span>
-              <a href={`/api/payment-runs/${r.id}/file`}><button className="btn small">{t('downloadCsv')}</button></a>
+              <select className="input" style={{ width: 'auto', padding: '6px 8px', fontSize: 13 }} value={fileFormat} onChange={(e) => setFileFormat(e.target.value)} aria-label={t('bankFileFormat')}>
+                <option value="unionbank-neft">Union Bank NEFT (.txt)</option>
+                <option value="unionbank-salary">Union Bank salary (.csv)</option>
+                <option value="generic">{t('genericCsv')}</option>
+              </select>
+              <a href={`/api/payment-runs/${r.id}/file?format=${fileFormat}`}><button className="btn small">{t('downloadCsv')}</button></a>
               {r.status !== 'paid' && <button className="btn small" onClick={() => markPaid(r.id)}>{t('markPaid')}</button>}
             </span>
             <details className="run-items"><summary>{t('farmerPaymentStatus')}</summary>
