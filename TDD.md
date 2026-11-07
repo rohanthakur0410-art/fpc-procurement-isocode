@@ -315,7 +315,7 @@ real browser session (record at the end of this document).
 | Auth, roles, per-centre data | |
 | AI photo reading of scale/meter displays (verified scope, section 6) | |
 
-Registry data has a dedicated searchable screen available online and from cached data offline, and remains seeded/read-only. The verified marker and masked bank fields are synthetic demo data, not real bank/identity verification. Payment runs are initiated manually; there is no automatic weekly schedule. CSV layout is not validated against any bank. A generated unpaid run reserves its slips to prevent duplicate file inclusion; cancellation/reissue is not implemented.
+Registry data has a dedicated searchable screen available online and from cached data offline, and remains seeded/read-only. The verified marker and masked bank fields are synthetic demo data, not real bank/identity verification. Payment runs are initiated manually; there is no automatic weekly schedule. The Union Bank NEFT and salary layouts match the bank's published field order (section 7); no bank has validated the files, and the demo file is synthetic and not uploadable as-is. A generated unpaid run reserves its slips to prevent duplicate file inclusion; cancellation/reissue is not implemented.
 
 AI photo reading moved from "implemented but unverified" to verified on 6
 November 2026 (IST) on the hosted demo with two real display photos (section 6).
