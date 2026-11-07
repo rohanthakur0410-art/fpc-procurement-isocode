@@ -6,7 +6,7 @@
 
 **Date:** November 2026
 
-**Repository:** https://github.com/rohanthakur0410-art/fpc-procurement (currently private; public submission repository pending safe publication)
+**Repository:** https://github.com/rohanthakur0410-art/fpc-procurement-isocode (public for the Isocode review period, per the brief)
 
 **Live review demo:** https://fpc-procurement.onrender.com (free tier sleeps when idle; see deployment.md)
 
