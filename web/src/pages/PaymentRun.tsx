@@ -99,6 +99,7 @@ export default function PaymentRun() {
 
       <div className="card">
         <h3 style={{ marginBottom: 8 }}>{t('runs')}</h3>
+        <p className="sub2" style={{ marginTop: 0 }}>{t('bankFileDemoNote')}</p>
         {runs.length === 0 && <p className="sub">{t('empty')}</p>}
         {runs.map((r) => (
           <div key={r.id} className="list-item payment-run" style={{ cursor: 'default' }}>
@@ -113,7 +114,7 @@ export default function PaymentRun() {
                 <option value="unionbank-salary">Union Bank salary (.csv)</option>
                 <option value="generic">{t('genericCsv')}</option>
               </select>
-              <a href={`/api/payment-runs/${r.id}/file?format=${fileFormat}`}><button className="btn small">{t('downloadCsv')}</button></a>
+              <a href={`/api/payment-runs/${r.id}/file?format=${fileFormat}`}><button className="btn small">{t('downloadFile')} ({fileFormat === 'unionbank-neft' ? '.txt' : '.csv'})</button></a>
               {r.status !== 'paid' && <button className="btn small" onClick={() => markPaid(r.id)}>{t('markPaid')}</button>}
             </span>
             <details className="run-items"><summary>{t('farmerPaymentStatus')}</summary>
