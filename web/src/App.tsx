@@ -30,7 +30,7 @@ function BottomNav() {
   const { user, t } = useApp();
   const loc = useLocation();
   if (!user) return null;
-  if (loc.pathname === '/operator/entry') return null;
+  if (loc.pathname === '/operator/entry' || loc.pathname === '/login') return null;
   const items = user.role === 'office'
     ? [
         { to: '/office', ic: 'gauge', k: 'navDash' },
