@@ -6,7 +6,7 @@
 
 **Date:** November 2026
 
-**Repository:** https://github.com/rohanthakur0410-art/fpc-procurement (public during Isocode review, per the brief)
+**Repository:** https://github.com/rohanthakur0410-art/fpc-procurement (currently private; public submission repository pending safe publication)
 
 **Live review demo:** https://fpc-procurement.onrender.com (free tier sleeps when idle; see deployment.md)
 
@@ -109,9 +109,15 @@ brief's sample rows:
 Two kinds, clearly separated:
 
 1. **Rule-based checks (always on):** unusual-quantity flag (see §9), same
-   farmer delivering twice within an hour, chain-broken batches. Flagged
-   purchases are held from the payment run until the office approves them.
-   Flags never cancel a purchase.
+   farmer delivering twice within an hour, moisture readings too uniform at
+   one centre, chain-broken batches. Flagged purchases are held from the
+   payment run until the office approves them. Flags never cancel a purchase.
+   The moisture-uniformity check fires when a centre's new reading is
+   identical to its 4 immediately previous readings (5 in a row, ordered by
+   device-stated time): a centre datalogging one constant number instead of
+   measuring each lot. It compares readings across crops and uses the
+   device-stated time, both conservative choices; the office can tune the
+   run length (`UNIFORM_MOISTURE_RUN = 5` in `server/src/flags.ts`).
 2. **AI photo reading (live and verified on the hosted demo):** the
    operator can photograph the weighing scale and the moisture meter; a server
    endpoint sends the photo to a vision model (a separately authorized Google AI
@@ -163,9 +169,10 @@ Two kinds, clearly separated:
   file (assumption - the brief names no bank). Because the registry stores
   bank accounts masked only, the CSV's account column carries the masked
   value, so the generated file is demo-shaped and could not be uploaded to a
-  real bank as-is. Production use would require collecting full account
-  numbers under a DPDP-compliant consent flow and the bank's own bulk-upload
-  template; the brief supplies neither.
+  real bank as-is. The brief's requirement that payment files match the
+  bank's bulk-upload format is therefore only partially met: matching a real
+  bank's template needs the bank's own template and full (unmasked) account
+  numbers, and the brief supplies neither.
 
 ## 8. Security
 
@@ -197,8 +204,10 @@ The business-rule assumptions below are tunable by the office. Recorded history 
 
 1. **Fractional moisture deduction is pro-rata** (e.g. 13.5% → 1.5% deduction).
    The brief states the rule for whole points only.
-2. **Payment file format** is a generic NEFT-style CSV; a real bank would
-   supply its own template.
+2. **Payment file format** is a generic NEFT-style CSV; the "match the
+   bank's bulk-upload format" requirement is partially met - the bank's own
+   template was never supplied, so an exact match cannot be implemented or
+   verified from the brief alone.
 3. **Grade B rates** (₹4,650 soybean / ₹6,900 tur) and the unusual-quantity
    threshold (1.5× a simple yield-per-acre estimate) are placeholder rules the
    office could tune; the mechanism is what matters.
@@ -411,8 +420,9 @@ generated payment file.
 
 ### Live hosted verification record (6 November 2026, IST)
 
-Verified on the private Render deployment (Neon Postgres attached, so records
-survive sleep and redeploys), through the real entry UI in a browser session:
+Verified on the live Render demo deployment (publicly reachable,
+login-protected; Neon Postgres attached, so records survive sleep and
+redeploys), through the real entry UI in a browser session:
 
 - Photo-to-confirmed-reading end to end with two real display photos: a
   weighbridge indicator (100 kg) and a wood moisture meter (14.0%), both public

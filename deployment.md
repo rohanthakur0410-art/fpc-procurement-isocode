@@ -21,9 +21,22 @@ run at `server/data/app.db` (git-ignored; delete it to reseed).
 Demo tip: the operator home has a "Simulate offline (demo)" switch so the
 offline queue and sync can be tried without disabling Wi-Fi.
 
+With a scale or moisture photo attached, check the AI reading shown beside the
+photo, then tap "Reading is correct" to fill the weight or moisture field
+(values never auto-fill without that confirmation).
+
+Daily central prices: rates are dated and set by the office. The local seed
+writes sample rates for the day the database is first created; on any later
+date the operator sees "Price / amount pending" and entries save as unpriced
+drafts (weights only) until the office sets that day's rates. To price a day:
+sign in as the office manager, open the price board, set that date's rates
+(soybean and tur, grades A and B), then sign back in as the operator and tap
+"Review dated price" on the draft to confirm the dated rate. The same applies
+to the live demo above, which was seeded on 2026-11-05.
+
 ## Deployment
 
-Private review demo: https://fpc-procurement.onrender.com
+Live demo: https://fpc-procurement.onrender.com (publicly reachable, login-protected)
 
 Render Free runs one Node process serving the built frontend. The free service can
 sleep after about 15 idle minutes and may take about a minute to wake.

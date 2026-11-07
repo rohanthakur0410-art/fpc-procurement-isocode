@@ -33,6 +33,7 @@ export default function PriceBoard() {
     <Shell>
       <h1>{t('priceBoard')}</h1>
       <p className="sub">{date} · {t('rateOfDay')}</p>
+      <p className="sub2">{t('sampleRatesNote')}</p>
       <div className="card">
         <table className="simple">
           <thead><tr><th>{t('crop')}</th><th>{t('grade')}</th><th>₹ {t('perQuintal')}</th></tr></thead>

@@ -124,6 +124,23 @@ describe('offline sync', () => {
     expect(r.body.results[0].flags).toContain('weight_beyond_land_yield');
   });
 
+  it('flags five identical moisture readings in a row at one centre and holds payment', async () => {
+    const dc = db.prepare('SELECT last_seq, last_hash FROM device_chains WHERE device_id = ?').get('test-device-1') as any;
+    const farmers = ['F0001', 'F0002', 'F0003', 'F0006', 'F0008']; // unused by other tests here; seed rows are days old, outside the 1-hour dup window
+    let prev = dc.last_hash;
+    const entries = [];
+    for (let i = 0; i < 5; i++) {
+      const e = await makeEntry(`6666666${i}-6666-4666-8666-66666666666${i}`, dc.last_seq + 1 + i, prev, { farmerId: farmers[i], moistureTenths: 130 });
+      prev = e.hash;
+      entries.push(e);
+    }
+    const r = await call('/api/sync', { method: 'POST', cookie: operatorCookie, body: { deviceId: 'test-device-1', entries } });
+    // the run forms only on the 5th identical reading (this entry + 4 prior)
+    expect(r.body.results[0].flags).not.toContain('moisture_too_uniform');
+    expect(r.body.results[4].flags).toContain('moisture_too_uniform');
+    expect(r.body.results[4].status).toBe('flagged'); // held from the payment run, never cancelled
+  });
+
   it('detects a broken chain and flags instead of silently approving', async () => {
     const chain = db.prepare('SELECT last_hash FROM device_chains WHERE device_id = ?').get('test-device-1') as any;
     const e = await makeEntry('55555555-5555-4555-8555-555555555555', 5, chain.last_hash, { farmerId: 'F0005' });

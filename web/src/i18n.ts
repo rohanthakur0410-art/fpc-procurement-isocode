@@ -56,6 +56,10 @@ const dict: Record<string, { mr: string; en: string }> = {
   readPhoto: { mr: 'फोटो वाचा (AI)', en: 'Read photo (AI)' },
   aiReading: { mr: 'AI वाचन', en: 'AI reading' },
   confirmAi: { mr: 'वाचन बरोबर आहे', en: 'Reading is correct' },
+  aiConfirmHint: {
+    mr: 'AI वाचन तपासा, मग "वाचन बरोबर आहे" दाबा - तेव्हाच वजन/ओलावा फील्ड भरेल.',
+    en: 'Check the AI reading, then tap "Reading is correct" to fill the weight or moisture field.',
+  },
   aiMismatch: {
     mr: 'टाइप केलेले मूल्य फोटो वाचनाशी जुळत नाही. फोटो तपासा, मूल्य दुरुस्त करा किंवा फोटो काढून मॅन्युअल एंट्री करा.',
     en: 'Typed value does not match the photo reading. Re-check the photo, correct the value, or remove the photo to enter manually.',
@@ -118,6 +122,14 @@ const dict: Record<string, { mr: string; en: string }> = {
   unpricedDraft: {mr:'दर बाकी असलेली नोंद',en:'Unpriced collection draft'},
   unpricedNotice: {mr:'दर नसलेली नोंद: फक्त वजन. दर आणि रक्कम बाकी. ही अंतिम पावती नाही; SMS किंवा पेमेंट नाही. दिनांकाचा केंद्रीय दर मिळाल्यावर तपासून पुष्टी करा.',en:'Unpriced collection: weights only. Rate and amount are pending. This is not a final slip; no SMS or payment. Review and confirm the central price for the collection date later.'},
   pricePending: {mr:'दर / रक्कम बाकी',en:'Price / amount pending'},
+  sampleRatesNote: {
+    mr: 'डेमो: हे नमुना दर आहेत, बाजारभाव नाहीत.',
+    en: 'Demo: these are sample rates, not live market prices.',
+  },
+  pricePendingHint: {
+    mr: 'या दिवसाचा दर अजून ठरलेला नाही. ऑफिस प्राईज बोर्डवर दर ठरवते. नोंद दराशिवाय मसुदा म्हणून जतन होईल; दर ठरल्यावर "दिनांकाचा दर तपासा" ने पूर्ण करा.',
+    en: "No rate is set for this date yet - the office sets it on the price board. The entry saves as an unpriced draft; complete it later via 'Review dated price'.",
+  },
   collectionDate: {mr:'संकलन दिनांक',en:'Collection date'},
   reviewDatedPrice: {mr:'दिनांकाचा दर तपासा',en:'Review dated price'},
   draftPricingReview: {mr:'मूळ वजन कायम आहे. संकलन दिनांकाचा दर आणि रक्कम पुष्टी करा:',en:'Original weights retained. Confirm the central rate and amount for collection date:'},

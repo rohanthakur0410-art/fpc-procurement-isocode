@@ -90,6 +90,7 @@ function PhotoReader({
         <div className="callout green">
           {t('aiReading')}: <strong className="num-lg">{fmtVal(ai.valueTenths)}</strong>
           <button className="btn small" style={{ marginLeft: 10 }} onClick={() => onAccept(ai.valueTenths!)}>{t('confirmAi')}</button>
+          <div className="sub2" style={{ marginTop: 6 }}>{t('aiConfirmHint')}</div>
         </div>
       )}
       {ai.status === 'unsure' && <div className="callout">{t('aiUnsure')}</div>}
@@ -320,6 +321,7 @@ export default function EntryWizard() {
       {crop && (
         <div className="callout green" style={{ marginTop: 10 }}>
           {draft && <p>{t('collectionDate')}: {collectionDate}</p>}{t('rateOfDay')}: <strong>{rate != null ? `₹${rate.toLocaleString('en-IN')} ${t('perQuintal')}` : t('pricePending')}</strong>
+          {rate == null && <div className="sub2" style={{ marginTop: 6 }}>{t('pricePendingHint')}</div>}
         </div>
       )}
 
