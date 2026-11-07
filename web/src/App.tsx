@@ -106,6 +106,22 @@ export default function App() {
       });
   }, []);
 
+  useEffect(() => {
+    // Every fresh open of the app starts at the role picker, even when a
+    // session already exists. The flag lives in sessionStorage: a reopened
+    // app or new tab shows "Choose a role" again, while reloads and internal
+    // navigation in the same tab keep working after a role is chosen. The
+    // session and the offline outbox are left untouched.
+    try {
+      if (!sessionStorage.getItem('fpc_role_entry')) {
+        sessionStorage.setItem('fpc_role_entry', '1');
+        navigate('/login', { replace: true });
+      }
+    } catch {
+      navigate('/login', { replace: true });
+    }
+  }, [navigate]);
+
   const setLang = (l: Lang) => {
     setLangState(l);
     localStorage.setItem('fpc_lang', l);
