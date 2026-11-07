@@ -52,7 +52,7 @@ per route), never only hidden in the UI.
 ### 4.1 Write path
 
 1. Operator completes an entry. The app **always writes to the on-phone
-   outbox first** (IndexedDB), whether or not there is network. Saving does not require connectivity once today's central price and registry are cached. Without a dated price, measurements can be saved as a separate local unpriced draft, not a payable slip; see §9.
+   outbox first** (IndexedDB), whether or not there is network. Saving does not require connectivity once today's central price and registry are cached. Without a dated price, measurements can be saved as a separate local unpriced draft, not a payable slip; see section 9.
 2. Each entry gets a client-generated UUID, a per-device sequence number, and
    a hash chained to the previous entry from the same device
    (`hash = SHA-256(prevHash | uuid | seq | deviceTs | canonical(payload))`;
@@ -85,7 +85,7 @@ Limits: device timestamps are untrusted. An attacker controlling the device can 
 The same batch can be sent twice (retries, double-tap). The server keys on the
 client UUID: first send stores, repeats return `duplicate`. Slip numbers are
 assigned once, server-side, per centre, continuing the sample data's sequence
-(e.g. C07-24518 → next is C07-24519).
+(e.g. C07-24518 -> next is C07-24519).
 
 ## 5. Money and weight math
 
@@ -93,12 +93,12 @@ Single source of truth in `shared/src/calc.ts`, unit-tested against the
 brief's sample rows:
 
 - `net kg = (gross − tare)` reduced by **1% per moisture point above 12%**
-  (fractional points pro-rata - an assumption, see §9), with the
+  (fractional points pro-rata - an assumption, see section 9), with the
   deduction applied in integer tenths.
 - `amount = net kg × daily rate (₹/quintal)`, in integer paisa.
 - Verified against the brief's sample data, exact to the paisa:
   - C07-24518: 1250.0 − 18.0 = 1232.0 kg @ ₹4,850/q = **₹59,752.00**
-  - C07-24519: 860.0 − 12.0 = 848.0 → 2% deduction → 831.0 kg @ ₹4,850 = **₹40,303.50**
+  - C07-24519: 860.0 − 12.0 = 848.0 -> 2% deduction -> 831.0 kg @ ₹4,850 = **₹40,303.50**
   - C12-08876: 640.0 − 10.0 = 630.0 kg @ ₹7,200/q = **₹45,360.00**
 - Slip numbers, rates, and amounts shown on the phone's offline slip, the
   farmer's SMS, the office dashboard and the payment file all come from this
@@ -108,7 +108,7 @@ brief's sample rows:
 
 Two kinds, clearly separated:
 
-1. **Rule-based checks (always on):** unusual-quantity flag (see §9), same
+1. **Rule-based checks (always on):** unusual-quantity flag (see section 9), same
    farmer delivering twice within an hour, moisture readings too uniform at
    one centre, chain-broken batches. Flagged purchases are held from the
    payment run until the office approves them. Flags never cancel a purchase.
@@ -202,7 +202,7 @@ Two kinds, clearly separated:
 
 The business-rule assumptions below are tunable by the office. Recorded history is not: original entries, hashes and price corrections are append-only and are never rewritten or deleted.
 
-1. **Fractional moisture deduction is pro-rata** (e.g. 13.5% → 1.5% deduction).
+1. **Fractional moisture deduction is pro-rata** (e.g. 13.5% -> 1.5% deduction).
    The brief states the rule for whole points only.
 2. **Payment file format** is a generic NEFT-style CSV; the "match the
    bank's bulk-upload format" requirement is partially met - the bank's own
@@ -220,7 +220,7 @@ The business-rule assumptions below are tunable by the office. Recorded history 
 
 Nine tables in one SQLite file, created by `server/src/db.ts`. Column types
 are SQLite `TEXT`/`INTEGER`; the rules that matter live in the service layer
-and §5's money conventions.
+and section 5's money conventions.
 
 - **centres** - one row per collection centre: `code` (primary key), English
   and Marathi names, and `slip_counter`, the per-centre sequence that slip
@@ -234,17 +234,17 @@ and §5's money conventions.
 - **prices** - central daily rates: `UNIQUE(price_date, crop, grade)`, the
   rate as whole rupees per quintal, and a `set_by` audit column.
 - **purchases** - one row per collection entry, the core table:
-  `client_uuid` (unique; the idempotency key from §4), hash-chain fields
+  `client_uuid` (unique; the idempotency key from section 4), hash-chain fields
   (`device_id`, `seq`, `prev_hash`, `entry_hash`), foreign keys to centre
   and member, weights as integer tenths (`gross/tare/moisture/net_tenths`),
-  `rate_rupees` and `amount_paisa` as integers (§5), `status`
+  `rate_rupees` and `amount_paisa` as integers (section 5), `status`
   (`CHECK(approved|flagged|paid)`), a JSON `flags` array, optional
   `photo_name`, `device_ts`/`synced_at` timestamps, `draft_id` and
   `price_reviewed_at` for the unpriced-draft flow, and `slip_no` (unique,
   allocated at approval). Indexed on `(centre_code, device_ts)` and
   `(member_id, device_ts)` for the two main read paths.
 - **device_chains** - per-device sync cursors (`last_seq`, `last_hash`) used
-  to verify chain continuity on sync (§4).
+  to verify chain continuity on sync (section 4).
 - **payment_runs / payment_items** - a run records `run_date`, `item_count`,
   `total_paisa`, `created_by` and `status`
   (`CHECK(file_generated|paid)`); each item links a run to a purchase and
@@ -259,7 +259,7 @@ and §5's money conventions.
 Design rules worth noticing:
 
 1. Money is `INTEGER` paisa and weights are `INTEGER` tenths of a kg; no
-   floating point anywhere in the money path (§5).
+   floating point anywhere in the money path (section 5).
 2. Correction history is append-only (`price_resolutions`); correction rows
    are never updated or deleted.
 3. Slip numbers and payment amounts are allocated inside transactions, so a
@@ -284,7 +284,7 @@ Design rules worth noticing:
   excluded from payment run; CSV totals equal the sum of included slips to
   the paisa; SMS queued per accepted purchase; a slip already in a generated run cannot be added to another.
 - **Further integrity:** a changed UUID retry or different-device retry is rejected, legitimate retries retain hold flags, unverified beneficiaries are excluded, and seed timestamps are host-timezone independent.
-- **Vision adapter, mocked provider only:** scale/moisture response parsing, unsure/malformed/invalid result, missing key and provider error. The automated suite uses no external key or live vision call; the live-model verification of 6 November 2026 (see §6 and the record below) is a separate manual record, not part of the suite.
+- **Vision adapter, mocked provider only:** scale/moisture response parsing, unsure/malformed/invalid result, missing key and provider error. The automated suite uses no external key or live vision call; the live-model verification of 6 November 2026 (see section 6 and the record below) is a separate manual record, not part of the suite.
 
 Manual verification: full offline round-trip on a fresh browser profile with
 the network disabled (app loads from service worker cache, farmer list
@@ -300,16 +300,16 @@ real browser session (record at the end of this document).
 | Offline storage, sync, hash chain, idempotency | SMS gateway (internal log instead) |
 | Money math, price board, flags, payment CSV | Bank file upload (CSV download instead) |
 | Auth, roles, per-centre data | |
-| AI photo reading of scale/meter displays (verified scope, §6) | |
+| AI photo reading of scale/meter displays (verified scope, section 6) | |
 
 Registry data has a dedicated searchable screen available online and from cached data offline, and remains seeded/read-only. The verified marker and masked bank fields are synthetic demo data, not real bank/identity verification. Payment runs are initiated manually; there is no automatic weekly schedule. CSV layout is not validated against any bank. A generated unpaid run reserves its slips to prevent duplicate file inclusion; cancellation/reissue is not implemented.
 
 AI photo reading moved from "implemented but unverified" to verified on 6
-November 2026 (IST) on the hosted demo with two real display photos (§6).
+November 2026 (IST) on the hosted demo with two real display photos (section 6).
 Scope stays narrow: the specific verified display photos (see section 6)
 on the free-tier model, with
 manual entry always available and mismatches blocked. Wider accuracy claims
-would need a labelled photo set, which is future work (§14).
+would need a labelled photo set, which is future work (section 14).
 
 ## 13. UI and design decisions
 
@@ -350,7 +350,7 @@ Cut deliberately (scope discipline per the brief):
   used to keep the phone app light, with manual entry always available as the
   fallback.
 - Multi-operator keying of the hash chain on a shared device (single
-  operator session assumed, see §9).
+  operator session assumed, see section 9).
 - Centre stock is shown on the office dashboard as a per-centre aggregate from
   synced purchases; truck dispatch with weight-loss tracking is optional depth
   beyond the core slice and is not built.
