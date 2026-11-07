@@ -477,23 +477,27 @@ data), with phone-sized (390px) emulation for the same-day fixes:
 - Payment run on the phone: run #2 created from the office demo for that slip
   (1 item, ₹3,816.95, file_generated).
 - Bank file download on the phone: Union Bank NEFT (.txt) selected, "Download
-  file (.txt)" tapped, and the saved file opened in the phone's viewer:
-  FILEHDR,FPCDEMO,2,N plus one NEFT record with the masked beneficiary
-  account, INR 3816.95 and reference FPC-2026-11-07-C07-24521. The run #1
-  file (3 records) was also downloaded and opened on the phone.
+  file (.txt)" tapped, and the saved run #1 file opened in the phone's
+  viewer: FILEHDR,FPCDEMO,1 with three NEFT records (masked beneficiary
+  accounts). Run #2's download was verified separately by emulated tap at
+  390px (the tap fetched the file, 200, text/plain, without leaving the
+  page); it was not saved and opened as a file on the phone itself.
 - A phone-only download defect was found and fixed the same day: the service
   worker's navigation fallback had been serving the app shell for the
   download tap, so no file downloaded on phones with the PWA active. The
   service worker now excludes /api/ paths from that fallback; after the fix
   the tap was observed to fetch the file (200, text/plain) without leaving
   the page. Phones pick up the fix via the in-app "Update now" prompt.
-- App-open behavior: opening the app or its root link now always shows
-  "Choose a role" first. The session is kept (no forced sign-out) and the
-  offline outbox is untouched; the bottom nav is hidden on the picker screen;
-  internal pages and reloads are unaffected.
+- App-open behavior: the app now shows "Choose a role" first when opened at
+  its root link (verified by loading the root URL and by opening the app in
+  a fresh browser tab at 390px emulation; an actual Android home-screen
+  relaunch was not directly tested). The session is kept (no forced
+  sign-out) and the offline outbox is untouched; the bottom nav is hidden on
+  the picker screen; internal pages and reloads are unaffected.
 - Narrow-screen fix: the day-total amount no longer wraps mid-number at 390px
   width (verified by measurement up to ₹1,45,415.50).
 
-Scope honesty: one phone, one entry, one run; not a multi-device or multi-day
+Scope honesty: one phone, one entry, one user-created payment run (run #2)
+and one phone-opened download (run #1); not a multi-device or multi-day
 soak. This record does not establish bank-side validation of the file, trusted
 time, or production durability.
