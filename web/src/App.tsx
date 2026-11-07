@@ -156,6 +156,7 @@ export default function App() {
         <Route path="/office/prices" element={guard('office', <PriceBoard />)} />
         <Route path="/office/payments" element={guard('office', <PaymentRun />)} />
         <Route path="/office/sms" element={guard('office', <SmsLog />)} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to={user ? (user.role === 'office' ? '/office' : '/operator') : '/login'} replace />} />
       </Routes>
     </Ctx.Provider>
