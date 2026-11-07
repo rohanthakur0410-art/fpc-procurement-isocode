@@ -338,8 +338,10 @@ replaces.
   and we assume centre staff are most comfortable reading Marathi (an
   assumption from the brief's context, not user research). The office can
   switch to English. All money and weight formatting is identical in both.
-- **Operator home = today's register:** a running day-book of this centre's
-  slips with live totals, plus one large ticket-style "new entry" action.
+- **Operator home = today's register:** a running day-book of this device's
+  slips (kept device-local by design, so it works fully offline; a fresh
+  phone starts empty until it makes its own entries) with live totals, plus
+  one large ticket-style "new entry" action.
   Empty states say exactly what to do first.
 - **One step per screen:** farmer, then crop/grade, then weight/moisture, followed by the review sheet. Back keeps entered values. The sticky total is on the measurement step.
 - **Review sheet before save:** the full slip (farmer, crop, grade, gross,
@@ -462,3 +464,36 @@ redeploys), through the real entry UI in a browser session:
 
 This record does not establish accuracy on arbitrary photos, production
 durability, trusted time, or real bank/SMS processing.
+
+### Live phone verification record (7 November 2026, IST)
+
+Verified on the live deployment from a real Android phone (Chrome, mobile
+data), with phone-sized (390px) emulation for the same-day fixes:
+
+- Collection end to end: an entry (gross 100.0 kg, tare 18.0 kg, moisture
+  16.0%) saved as official slip C07-24521 - net 78.7 kg, ₹3,816.95 under the
+  dated central rate - and synced online; the office dashboard showed it in
+  today's summary and pending payment within the minute.
+- Payment run on the phone: run #2 created from the office demo for that slip
+  (1 item, ₹3,816.95, file_generated).
+- Bank file download on the phone: Union Bank NEFT (.txt) selected, "Download
+  file (.txt)" tapped, and the saved file opened in the phone's viewer:
+  FILEHDR,FPCDEMO,2,N plus one NEFT record with the masked beneficiary
+  account, INR 3816.95 and reference FPC-2026-11-07-C07-24521. The run #1
+  file (3 records) was also downloaded and opened on the phone.
+- A phone-only download defect was found and fixed the same day: the service
+  worker's navigation fallback had been serving the app shell for the
+  download tap, so no file downloaded on phones with the PWA active. The
+  service worker now excludes /api/ paths from that fallback; after the fix
+  the tap was observed to fetch the file (200, text/plain) without leaving
+  the page. Phones pick up the fix via the in-app "Update now" prompt.
+- App-open behavior: opening the app or its root link now always shows
+  "Choose a role" first. The session is kept (no forced sign-out) and the
+  offline outbox is untouched; the bottom nav is hidden on the picker screen;
+  internal pages and reloads are unaffected.
+- Narrow-screen fix: the day-total amount no longer wraps mid-number at 390px
+  width (verified by measurement up to ₹1,45,415.50).
+
+Scope honesty: one phone, one entry, one run; not a multi-device or multi-day
+soak. This record does not establish bank-side validation of the file, trusted
+time, or production durability.
