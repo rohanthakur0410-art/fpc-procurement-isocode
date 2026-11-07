@@ -269,7 +269,7 @@ Design rules worth noticing:
 
 ## 11. Testing
 
-70 automated tests (`npx vitest run`):
+71 automated tests (`npx vitest run`):
 
 - **Calculation:** every brief sample row exact to the paisa; fractional
   moisture; rounding behaviour.
@@ -278,7 +278,9 @@ Design rules worth noticing:
   cross-centre writes blocked.
 - **Sync:** idempotent re-send returns duplicate; chain-broken batch stored +
   flagged; slip numbers assigned once; mismatched/missing prices held; broken batches retain the anchor.
-- **Flags & payments:** unusual quantity flagged and held; flagged purchase
+- **Flags & payments:** unusual quantity flagged and held; a run of five
+  identical moisture readings (current entry plus the centre's four most
+  recent prior purchases) flagged and held; flagged purchase
   excluded from payment run; CSV totals equal the sum of included slips to
   the paisa; SMS queued per accepted purchase; a slip already in a generated run cannot be added to another.
 - **Further integrity:** a changed UUID retry or different-device retry is rejected, legitimate retries retain hold flags, unverified beneficiaries are excluded, and seed timestamps are host-timezone independent.
