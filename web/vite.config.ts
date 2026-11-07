@@ -18,6 +18,10 @@ export default defineConfig({
         icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
       },
       workbox: {
+        // Downloads and other API navigations must reach the network;
+        // without this the navigation fallback serves the app shell instead
+        // of the payment file, so tapping Download on a phone does nothing.
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /\/api\/(members|centres|prices)/,
